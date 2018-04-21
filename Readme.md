@@ -1,6 +1,6 @@
 # Rocker
 
-**R**emote D_ocker_ is a small collection of shell scripts that extends the
+**R**emote D*ocker* is a small collection of shell scripts that extends the
 `docker` client with support for securely connecting to a remote `dockerd`
 daemon via SSH.
 
