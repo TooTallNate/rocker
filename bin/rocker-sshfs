@@ -1,0 +1,19 @@
+#!/bin/sh
+# https://superuser.com/a/918708/41354
+set -euo pipefail
+
+hostname="${1}"
+shift
+
+local_ssh_server_port="22"
+
+# `LC_` prefix because it's a whitelisted prefix
+# in most `sshd_config` files by default
+# https://superuser.com/a/163228/41354
+export LC_HOSTNAME="$(hostname)"
+
+exec ssh -t \
+  -o SendEnv=LC_HOSTNAME \
+  -R "0:127.0.0.1:${local_ssh_server_port}" \
+  "${hostname}" \
+  "$(cat ~/get-port.sh)"

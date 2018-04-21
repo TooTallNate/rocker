@@ -1,0 +1,25 @@
+#!/bin/sh
+# Whitelist this program in the `/etc/sudoers` file in order
+# to make binding to ports < 1024 work without a password:
+# https://unix.stackexchange.com/a/90605/102771
+set -euo pipefail
+env | grep SUDO
+whoami
+hostname="${1}"
+shift
+
+control_socket="$(mktemp --dry-run)"
+args="-f -N -M -S ${control_socket}"
+
+for port in "$@"; do
+  local_port="${port}"
+  server_port="${port}"
+  if echo "${port}" | grep ":" >/dev/null; then
+    local_port="$(echo "${port}" | awk -F: '{print $1}')"
+    server_port="$(echo "${port}" | awk -F: '{print $2}')"
+  fi
+  args="${args} -L ${local_port}:127.0.0.1:${server_port}"
+done
+
+echo ssh ${args} "${hostname}"
+#exec ssh ${args} "${hostname}"

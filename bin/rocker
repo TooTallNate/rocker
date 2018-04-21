@@ -1,0 +1,12 @@
+#!/bin/sh
+set -euo pipefail
+
+# parse argv variables
+for i in "$@"; do
+  case "$i" in
+    -p|--publish) VERSION="$2"; shift 2;;
+    -v|--volume) PLATFORM="$2"; shift 2;;
+  esac
+done
+
+exec docker "$@"
