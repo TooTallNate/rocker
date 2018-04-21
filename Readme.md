@@ -15,6 +15,21 @@ Aims to support all docker features, in particular:
  * Volume mounts (`-v`) by a reverse `sshfs` from the server to local.
  * Port publishing (`-p`) by SSH local port forwarding.
 
+## Usage
+
+One-time with `-H`:
+
+```bash
+$ docker -H ssh://user@myserver.com run --rm -p 80:80 nginx
+```
+
+Make it permenant by setting `DOCKER_HOST`:
+
+```bash
+$ export DOCKER_HOST=ssh://user@myserver.com
+$ docker run --rm -p 80:80 nginx
+```
+
 ## Setup
 
 ### Local
@@ -34,11 +49,7 @@ Instructions are for an Ubuntu server:
 
  1. [Setup SSH server](https://help.ubuntu.com/community/SSH/OpenSSH/Configuring).
  1. [Setup `docker`](https://docs.docker.com/install/linux/docker-ce/ubuntu).
+ 1. Install `sshfs` - `sudo apt-get install sshfs`
+ 1. Create `/mnt/sshfs` with full permissions for the user you will log in
  1. Configure `dockerd` to listen on a TCP port by adding `-H tcp://127.0.0.1:2375`
     to the `ExecStart` in `/lib/systemd/system/docker.service`.
-
-## Usage
-
-```bash
-$ docker -H ssh://myserver.com run --rm -p 80:80 nginx
-```
