@@ -1,0 +1,34 @@
+#!/bin/sh
+# This script runs on the SSH server destination
+set -euo pipefail
+
+# First we have to detect the ephermeral port that was bound
+tty_name="$(echo "${SSH_TTY}" | sed 's/\/dev\///')"
+echo "TTY: ${tty_name}"
+
+#ps ax | grep ssh
+ssh_pid="$(ps ax | grep "${tty_name}" | grep ssh | grep -v grep | awk '{print $1;}')"
+echo "PID: ${ssh_pid}"
+
+#sudo netstat -tap | grep sshd
+port="$(sudo netstat -tap | grep "${ssh_pid}\/sshd" | head -n1 | awk '{print $4;}' | awk -F: '{print $2;}')"
+echo "Port: ${port}"
+
+dir="/"
+mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
+
+rm -rf "${mountpoint}"
+mkdir -p "${mountpoint}"
+
+echo "Mounting local filesystem at ${mountpoint}"
+
+# https://askubuntu.com/a/980257/403009
+# https://serverfault.com/a/132973/294389
+ssh_command="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+exec sshfs \
+  -f \
+  -o reconnect \
+  -o ssh_command="${ssh_command}" \
+  -p "${port}" \
+  "127.0.0.1:${dir}" \
+  "${mountpoint}"
