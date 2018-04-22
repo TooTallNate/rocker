@@ -2,6 +2,7 @@
 set -euo pipefail
 version="0.0.1"
 docker="/usr/bin/docker"
+hostname="$(hostname)"
 
 # Docker for Mac
 if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
@@ -24,7 +25,7 @@ publish_port() {
 }
 
 add_volume() {
-  echo $1
+  args+=("--volume" "/mnt/sshfs/${hostname}${1}")
 }
 
 parse_host() {
