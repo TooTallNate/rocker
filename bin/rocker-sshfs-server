@@ -25,8 +25,11 @@ echo "Mounting local filesystem at ${mountpoint}"
 # https://askubuntu.com/a/980257/403009
 # https://serverfault.com/a/132973/294389
 ssh_command="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+
+# `allow_root` is required since dockerd runs as root
 exec sshfs \
   -f \
+  -o allow_root \
   -o reconnect \
   -o ssh_command="${ssh_command}" \
   -p "${port}" \
