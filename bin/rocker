@@ -30,9 +30,9 @@ add_volume() {
 
 parse_host() {
   local host="${1}"
-  if [ "${host:0:6}" = "ssh://" ]; then
+  if [ "$(echo "${host}" | awk -F:// '{print $1}')" = "ssh" ]; then
     rocker=1
-    rocker_hostname="$(echo "${host:6}")"
+    rocker_hostname="$(echo "${host}" | awk -F:// '{print $2}')"
     host="tcp://127.0.0.1:2375"
   fi
   args+=("--host" "${host}")
