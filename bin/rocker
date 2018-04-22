@@ -15,9 +15,9 @@ if [ $# -eq 1 -a \( "$1" = "-v" -o "$1" = "--version" \) ]; then
   exit 0
 fi
 
+args=()
 rocker=0
 rocker_hostname=""
-args=()
 
 publish_port() {
   echo $1
@@ -45,32 +45,30 @@ fi
 
 # Parse argv
 while [ $# -gt 0 ]; do
-  echo Arg: "${1}"
-  echo "$@"
+  #echo Arg: "${1}"
+  #echo "$@"
 
   case "$1" in
-    -H|--host)
-      parse_host "${2}"
-      shift 2
-      ;;
-    -p|--publish)
-      ;;
-    -v|--volume)
-      ;;
-    *)
-      args+=("${1}")
-      shift 1
-      ;;
+    -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
+    -H|--host) parse_host "${2}"; shift 2;;
+
+    -p=*|--publish=*) publish_port "${1#*=}"; shift 1;;
+    -p|--publish) publish_port "${2}"; shift 2;;
+
+    -v=*|--volume=*) add_volume "${1#*=}"; shift 1;;
+    -v|--volume) add_volume "${2}"; shift 2;;
+
+    *) args+=("${1}"); shift 1;;
   esac
 
-  echo "${args[@]}"
-  echo
+  #echo "${args[@]}"
+  #echo
 done
 
-if [ "${rocker}" -eq 1 ]; then
-  echo rocker-sshfs "${rocker_hostname}"
-  rocker-sshfs "${rocker_hostname}" &
-fi
+#if [ "${rocker}" -eq 1 ]; then
+#  echo rocker-sshfs "${rocker_hostname}"
+#  rocker-sshfs "${rocker_hostname}"
+#fi
 
 node -p "process.argv.slice(1)" "${docker}" "${args[@]}"
 exec "${docker}" "${args[@]}"

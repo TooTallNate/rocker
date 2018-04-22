@@ -5,15 +5,15 @@ set -euo pipefail
 
 # First detect the ephermeral port that was bound for the reverse `sshfs`
 tty_name="$(echo "${SSH_TTY}" | sed 's/\/dev\///')"
-echo "TTY: ${tty_name}"
+#echo "TTY: ${tty_name}"
 
 #ps ax | grep ssh
 ssh_pid="$(ps ax | grep "${tty_name}" | grep ssh | grep -v grep | awk '{print $1;}')"
-echo "PID: ${ssh_pid}"
+#echo "PID: ${ssh_pid}"
 
 #sudo netstat -tap | grep sshd
 port="$(sudo netstat -tap | grep "${ssh_pid}\/sshd" | head -n1 | awk '{print $4;}' | awk -F: '{print $2;}')"
-echo "Port: ${port}"
+#echo "Port: ${port}"
 
 dir="/"
 mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
