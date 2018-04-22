@@ -2,6 +2,7 @@
 # https://superuser.com/a/918708/41354
 set -euo pipefail
 
+control_socket_dir="$HOME/.ssh/rocker_connections"
 pid="$$"
 #echo "PID: ${pid}"
 pid_plus_one=$((pid+1))
@@ -21,10 +22,13 @@ shift
 # https://superuser.com/a/163228/41354
 export LC_HOSTNAME="$(hostname)"
 
+mkdir -p "${control_socket_dir}"
+
 echo "Port forwarding remote dockerd to 127.0.0.1:2375"
 ssh -t \
   -o SendEnv=LC_HOSTNAME \
+  -M -S "${control_socket_dir}/%r@%h:%p.sock" \
   -L "2375:127.0.0.1:2375" \
   -R "0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat "$(which rocker-sshfs-server)")"
+  "$(cat "$(which rockerd-server)")"
