@@ -1,12 +1,76 @@
 #!/bin/sh
 set -euo pipefail
+version="0.0.1"
+docker="/usr/bin/docker"
 
-# parse argv variables
-for i in "$@"; do
-  case "$i" in
-    -p|--publish) VERSION="$2"; shift 2;;
-    -v|--volume) PLATFORM="$2"; shift 2;;
+# Docker for Mac
+if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
+  docker="/Applications/Docker.app/Contents/Resources/bin/docker"
+fi
+
+if [ $# -eq 1 -a \( "$1" = "-v" -o "$1" = "--version" \) ]; then
+  docker_version="$("${docker}" "$@")"
+  printf "${docker_version}"
+  echo " (rocker version ${version})"
+  exit 0
+fi
+
+rocker=0
+rocker_hostname=""
+args=()
+
+publish_port() {
+  echo $1
+}
+
+add_volume() {
+  echo $1
+}
+
+parse_host() {
+  local host="${1}"
+  if [ "${host:0:6}" = "ssh://" ]; then
+    rocker=1
+    rocker_hostname="$(echo "${host:6}")"
+    host="tcp://127.0.0.1:2375"
+  fi
+  args+=("--host" "${host}")
+}
+
+# Parse $DOCKER_HOST environment variable
+if [ ! -z "${DOCKER_HOST:-}" ]; then
+  parse_host "${DOCKER_HOST}"
+  unset DOCKER_HOST
+fi
+
+# Parse argv
+while [ $# -gt 0 ]; do
+  echo Arg: "${1}"
+  echo "$@"
+
+  case "$1" in
+    -H|--host)
+      parse_host "${2}"
+      shift 2
+      ;;
+    -p|--publish)
+      ;;
+    -v|--volume)
+      ;;
+    *)
+      args+=("${1}")
+      shift 1
+      ;;
   esac
+
+  echo "${args[@]}"
+  echo
 done
 
-exec docker "$@"
+if [ "${rocker}" -eq 1 ]; then
+  echo rocker-sshfs "${rocker_hostname}"
+  rocker-sshfs "${rocker_hostname}" &
+fi
+
+node -p "process.argv.slice(1)" "${docker}" "${args[@]}"
+exec "${docker}" "${args[@]}"

@@ -2,18 +2,29 @@
 # https://superuser.com/a/918708/41354
 set -euo pipefail
 
+pid="$$"
+#echo "PID: ${pid}"
+pid_plus_one=$((pid+1))
+#echo "plus one: ${pid_plus_one}"
+processes="$(ps ax | grep "$0 $*" | grep -v grep | grep -v "${pid}")"
+if [ "$(echo "${processes}" | wc -l)" -gt 1 ]; then
+  echo "Server is already running, matching processes:"
+  echo "${processes}"
+  exit 1
+fi
+
 hostname="${1}"
 shift
-
-local_ssh_server_port="22"
 
 # `LC_` prefix because it's a whitelisted prefix
 # in most `sshd_config` files by default
 # https://superuser.com/a/163228/41354
 export LC_HOSTNAME="$(hostname)"
 
-exec ssh -t \
+echo "Port forwarding remote dockerd to 127.0.0.1:2375"
+ssh -t \
   -o SendEnv=LC_HOSTNAME \
-  -R "0:127.0.0.1:${local_ssh_server_port}" \
+  -L "2375:127.0.0.1:2375" \
+  -R "0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat ~/get-port.sh)"
+  "$(cat "$(which rocker-sshfs-server)")"
