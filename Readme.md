@@ -1,14 +1,14 @@
 # Rocker
 
-**R**emote D*ocker* is a small collection of shell scripts that extends the
+*R*emote D*ocker* is a small collection of shell scripts that extends the
 `docker` client with support for securely connecting to a remote `dockerd`
 daemon via SSH.
 
 Why? Because I use a MacBook 12" which is essentially a tablet in laptop form,
-so using offloading the `dockerd` daemon to a more powerful machine makes
-development a lot faster. This also allows for an easy way to share running
-docker containers between teammates for collaboration, or if you develop on more
-than one machine.
+so offloading the `dockerd` daemon to a more powerful machine makes development
+a lot faster. This also allows for an easy way to share running docker
+containers between teammates for collaboration, or if you develop on more than
+one machine.
 
 Aims to support all docker features, in particular:
 
@@ -17,7 +17,7 @@ Aims to support all docker features, in particular:
 
 ## Usage
 
-One-time with `-H`:
+One-time with `-H`/`--host`:
 
 ```bash
 $ docker -H ssh://user@myserver.com run --rm -p 80:80 nginx
@@ -47,8 +47,8 @@ $ docker run --rm -p 80:80 nginx
 
 Instructions are for an Ubuntu server:
 
- 1. [Setup SSH server](https://help.ubuntu.com/community/SSH/OpenSSH/Configuring).
  1. [Setup `docker`](https://docs.docker.com/install/linux/docker-ce/ubuntu).
+ 1. [Setup SSH server](https://help.ubuntu.com/community/SSH/OpenSSH/Configuring).
  1. Install `sshfs` - `sudo apt-get install sshfs`.
  1. Create `/mnt/sshfs` with full permissions for the user you will log in as.
  1. Configure `dockerd` to listen on a TCP port by adding `-H tcp://127.0.0.1:2375`
