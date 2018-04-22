@@ -23,7 +23,7 @@ One-time with `-H`:
 $ docker -H ssh://user@myserver.com run --rm -p 80:80 nginx
 ```
 
-Make it permenant by setting `DOCKER_HOST`:
+Make it permanent by setting `DOCKER_HOST`:
 
 ```bash
 $ export DOCKER_HOST=ssh://user@myserver.com
