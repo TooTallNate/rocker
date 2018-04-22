@@ -21,6 +21,7 @@ rocker_hostname=""
 
 publish_port() {
   echo $1
+  args+=("--publish" "${1}")
 }
 
 add_volume() {
@@ -70,5 +71,5 @@ done
 #  rocker-sshfs "${rocker_hostname}"
 #fi
 
-node -p "process.argv.slice(1)" "${docker}" "${args[@]}"
+node -p "process.argv.slice(1)" "${docker}" "${args[@]}" >&2
 exec "${docker}" "${args[@]}"

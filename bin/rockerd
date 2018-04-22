@@ -5,8 +5,6 @@ set -euo pipefail
 control_socket_dir="$HOME/.ssh/rocker_connections"
 pid="$$"
 #echo "PID: ${pid}"
-pid_plus_one=$((pid+1))
-#echo "plus one: ${pid_plus_one}"
 processes="$(ps ax | grep "$0 $*" | grep -v grep | grep -v "${pid}")"
 if [ "$(echo "${processes}" | wc -l)" -gt 1 ]; then
   echo "Server is already running, matching processes:"
