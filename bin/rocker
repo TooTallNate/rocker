@@ -11,8 +11,7 @@ fi
 
 if [ $# -eq 1 -a \( "$1" = "-v" -o "$1" = "--version" \) ]; then
   docker_version="$("${docker}" "$@")"
-  printf "${docker_version}"
-  echo " (rocker version ${version})"
+  echo "${docker_version} (rocker version ${version})"
   exit 0
 fi
 
