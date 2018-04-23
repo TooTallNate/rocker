@@ -23,7 +23,7 @@ fi
 # `LC_` prefix because it's a whitelisted prefix
 # in most `sshd_config` files by default
 # https://superuser.com/a/163228/41354
-LC_HOSTNAME="$(hostname)"
+LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
 export LC_HOSTNAME
 
 mkdir -p "${control_socket_dir}"

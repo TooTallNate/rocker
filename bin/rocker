@@ -2,7 +2,7 @@
 set -euo pipefail
 version="0.0.1"
 docker="/usr/bin/docker"
-hostname="$(hostname)"
+hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
 
 # Docker for Mac
 if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
