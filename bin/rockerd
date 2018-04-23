@@ -2,31 +2,47 @@
 # https://superuser.com/a/918708/41354
 set -euo pipefail
 
-control_socket_dir="$HOME/.ssh/rocker_connections"
-pid="$$"
-#echo "PID: ${pid}"
-processes="$(ps ax | grep "$0 $*" | grep -v grep | grep -v "${pid}")"
-if [ "$(echo "${processes}" | wc -l)" -gt 1 ]; then
-  echo "Server is already running, matching processes:"
-  echo "${processes}"
-  exit 1
-fi
-
 hostname="${1}"
-shift
+control_socket_dir="$HOME/.ssh/rocker_connections"
+control_socket="${control_socket_dir}/%C.sock"
+
+exit_code() {
+  r=0
+  "$@" || r=$?
+  return "${r}"
+}
+
+# https://stackoverflow.com/a/18622662/376773
+r=0
+ssh -O check -S "${control_socket}" "${hostname}" 2>/dev/null || r=$?
+if [ "${r}" -eq 0 ]; then
+  #echo "Server is already running: $0 $*"
+  exit 0
+fi
 
 # `LC_` prefix because it's a whitelisted prefix
 # in most `sshd_config` files by default
 # https://superuser.com/a/163228/41354
-export LC_HOSTNAME="$(hostname)"
+LC_HOSTNAME="$(hostname)"
+export LC_HOSTNAME
 
 mkdir -p "${control_socket_dir}"
 
 echo "Port forwarding remote dockerd to 127.0.0.1:2375"
 ssh -t \
   -o SendEnv=LC_HOSTNAME \
-  -M -S "${control_socket_dir}/%r@%h:%p.sock" \
+  -M -S "${control_socket}" \
   -L "2375:127.0.0.1:2375" \
   -R "0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat "$(which rockerd-server)")"
+  "$(cat "$(which rockerd-server)")" </dev/tty >~/out.txt 2>~/out.txt &
+disown
+
+# Wait for 2375 to respond before passing control back to `rocker`
+while [ "$(r=0; curl 127.0.0.1:2375 </dev/null >/dev/null 2>/dev/null || r=$?; echo "${r}")" -ne 0 ]; do
+  #echo Sleeping 0.2s
+  sleep 0.2
+done
+
+#echo Done
+stty sane 2>/dev/null || true

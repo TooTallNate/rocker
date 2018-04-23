@@ -20,7 +20,6 @@ rocker=0
 rocker_hostname=""
 
 publish_port() {
-  echo $1
   args+=("--publish" "${1}")
 }
 
@@ -66,10 +65,10 @@ while [ $# -gt 0 ]; do
   #echo
 done
 
-#if [ "${rocker}" -eq 1 ]; then
-#  echo rocker-sshfs "${rocker_hostname}"
-#  rocker-sshfs "${rocker_hostname}"
-#fi
+if [ "${rocker}" -eq 1 ]; then
+  #echo rockerd "${rocker_hostname}"
+  rockerd "${rocker_hostname}"
+fi
 
-node -p "process.argv.slice(1)" "${docker}" "${args[@]}" >&2
+#node -p "process.argv.slice(1)" "${docker}" "${args[@]}" >&2
 exec "${docker}" "${args[@]}"

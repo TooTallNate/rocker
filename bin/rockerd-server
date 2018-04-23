@@ -18,7 +18,7 @@ port="$(sudo netstat -tap | grep "${ssh_pid}\/sshd" | head -n1 | awk '{print $4;
 dir="/"
 mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
 
-mkdir -p "${mountpoint}"
+mkdir -p "${mountpoint}" || sudo umount "${mountpoint}"
 
 echo "Mounting local filesystem at ${mountpoint}"
 
