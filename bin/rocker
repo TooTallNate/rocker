@@ -9,22 +9,46 @@ if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
   docker="/Applications/Docker.app/Contents/Resources/bin/docker"
 fi
 
-if [ $# -eq 1 -a \( "$1" = "-v" -o "$1" = "--version" \) ]; then
+if [ $# -eq 1 ] && [ "$1" = "-v" -o "$1" = "--version" ]; then
   docker_version="$("${docker}" "$@")"
   echo "${docker_version} (rocker version ${version})"
   exit 0
 fi
 
 args=()
+ports=()
 rocker=0
 rocker_hostname=""
 
-publish_port() {
+add_port() {
+  ports+=("${1}")
   args+=("--publish" "${1}")
 }
 
 add_volume() {
   args+=("--volume" "/mnt/sshfs/${hostname}${1}")
+}
+
+forward_port() {
+  local num_colons=
+  num_colons="$(echo "${1}" | tr -cd : | wc -c)"
+  local ip="0.0.0.0"
+  local local_port=
+  local container_port=
+  if [ "${num_colons}" -eq 0 ]; then
+    container_port="${1}"
+  elif [ "${num_colons}" -eq 1 ]; then
+    local_port="$(echo "${1}" | awk -F: '{print $1}')"
+    container_port="$(echo "${1}" | awk -F: '{print $2}')"
+  elif [ "${num_colons}" -eq 2 ]; then
+    ip="$(echo "${1}" | awk -F: '{print $1}')"
+    local_port="$(echo "${1}" | awk -F: '{print $2}')"
+    container_port="$(echo "${1}" | awk -F: '{print $3}')"
+  fi
+  if [ -z "${local_port}" ]; then
+    local_port="${container_port}"
+  fi
+  echo "Forwarding ${container_port}/tcp -> ${ip}:${local_port}"
 }
 
 parse_host() {
@@ -52,8 +76,8 @@ while [ $# -gt 0 ]; do
     -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
     -H|--host) parse_host "${2}"; shift 2;;
 
-    -p=*|--publish=*) publish_port "${1#*=}"; shift 1;;
-    -p|--publish) publish_port "${2}"; shift 2;;
+    -p=*|--publish=*) add_port "${1#*=}"; shift 1;;
+    -p|--publish) add_port "${2}"; shift 2;;
 
     -v=*|--volume=*) add_volume "${1#*=}"; shift 1;;
     -v|--volume) add_volume "${2}"; shift 2;;
@@ -66,8 +90,13 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "${rocker}" -eq 1 ]; then
-  #echo rockerd "${rocker_hostname}"
   rockerd "${rocker_hostname}"
+
+  if [ "${#ports[@]}" -gt 0 ]; then
+    for port in "${ports[@]}"; do
+      forward_port "${port}" &
+    done
+  fi
 fi
 
 #node -p "process.argv.slice(1)" "${docker}" "${args[@]}" >&2

@@ -3,19 +3,32 @@
 set -euo pipefail
 
 hostname="${1}"
+logfile="$HOME/rockerd.log"
 control_socket_dir="$HOME/.ssh/rocker_connections"
 control_socket="${control_socket_dir}/%C.sock"
 
 exit_code() {
   r=0
-  "$@" || r=$?
-  return "${r}"
+  "$@" </dev/null >/dev/null 2>/dev/null || r=$?
+  echo "${r}"
+}
+
+publish_ports() {
+  local ids=
+  local ports=
+  local running=1
+  echo "Watching for published docker container ports"
+  while [ "${running}" -eq 1 ]; do
+    ids="$(rocker -H "ssh://${hostname}" ps --quiet)"
+    echo "${ids}"
+    ports="$(echo "${ids}" | xargs -L 1 rocker -H "ssh://${hostname}" port)"
+    echo "${ports}"
+    sleep 5
+  done
 }
 
 # https://stackoverflow.com/a/18622662/376773
-r=0
-ssh -O check -S "${control_socket}" "${hostname}" 2>/dev/null || r=$?
-if [ "${r}" -eq 0 ]; then
+if [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; then
   #echo "Server is already running: $0 $*"
   exit 0
 fi
@@ -32,17 +45,20 @@ echo "Port forwarding remote dockerd to 127.0.0.1:2375"
 ssh -t \
   -o SendEnv=LC_HOSTNAME \
   -M -S "${control_socket}" \
-  -L "2375:127.0.0.1:2375" \
-  -R "0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
+  -L "127.0.0.1:2375:127.0.0.1:2375" \
+  -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat "$(which rockerd-server)")" </dev/tty >~/out.txt 2>~/out.txt &
-disown
+  "$(cat "$(which rockerd-server)")" </dev/tty >"${logfile}" 2>"${logfile}" &
+disown -h
 
-# Wait for 2375 to respond before passing control back to `rocker`
-while [ "$(r=0; curl 127.0.0.1:2375 </dev/null >/dev/null 2>/dev/null || r=$?; echo "${r}")" -ne 0 ]; do
-  #echo Sleeping 0.2s
-  sleep 0.2
+publish_ports </dev/null >"${logfile}" 2>"${logfile}" &
+disown -h
+
+# Wait for port 2375 to respond before passing control back to `rocker`
+while [ "$(exit_code curl 127.0.0.1:2375)" -ne 0 ]; do
+  #echo Sleeping 1s
+  sleep 1
 done
 
-#echo Done
 stty sane 2>/dev/null || true
+#echo Done
