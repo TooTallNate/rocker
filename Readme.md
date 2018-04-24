@@ -1,8 +1,11 @@
 # Rocker
 
-**R**emote D**ocker** is a small collection of shell scripts that extends the
-`docker` client with support for securely connecting to a remote `dockerd`
-daemon via SSH.
+**R**emote D**ocker** is a small wrapper around the `docker` client that
+extends it with support for securely connecting to a remote `dockerd` daemon
+via SSH.
+
+In short, it implements the `ssh://` protocol for the `--host` parameter in the
+Docker CLI.
 
 Why? Because I use a MacBook 12" which is essentially a tablet in laptop form,
 so offloading the `dockerd` daemon to a more powerful machine makes development
@@ -12,8 +15,8 @@ one machine.
 
 Aims to support all docker features, in particular:
 
- * Volume mounts (`-v`) by a reverse `sshfs` from the server to local.
  * Port publishing (`-p`) by SSH local port forwarding.
+ * Volume mounts (`-v`) by a reverse `sshfs` from the server to local.
 
 ## Usage
 
