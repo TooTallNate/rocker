@@ -41,24 +41,25 @@ export LC_HOSTNAME
 
 mkdir -p "${control_socket_dir}"
 
-echo "Port forwarding remote dockerd to 127.0.0.1:2375"
+echo "Port forwarding remote dockerd to 127.0.0.1:2375" >>"${logfile}"
 ssh -t \
   -o SendEnv=LC_HOSTNAME \
   -M -S "${control_socket}" \
   -L "127.0.0.1:2375:127.0.0.1:2375" \
   -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat "$(which rockerd-server)")" </dev/tty >"${logfile}" 2>"${logfile}" &
+  "$(cat "$(which rockerd-server)")" </dev/tty >>"${logfile}" 2>&1 &
 disown -h
 
-publish_ports </dev/null >"${logfile}" 2>"${logfile}" &
-disown -h
+# Disable for now, since it forkbombs :(
+#publish_ports </dev/null >>"${logfile}" 2>&1 &
+#disown -h
 
 # Wait for port 2375 to respond before passing control back to `rocker`
 while [ "$(exit_code curl 127.0.0.1:2375)" -ne 0 ]; do
-  #echo Sleeping 1s
   sleep 1
 done
 
+# Due to the `/dev/tty` redirect to ssh, some terminal state gets
+# mangled by now, so attempt to fix it first
 stty sane 2>/dev/null || true
-#echo Done

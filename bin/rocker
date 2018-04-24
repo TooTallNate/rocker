@@ -1,5 +1,10 @@
 #!/bin/sh
 set -euo pipefail
+BOLD="$(tput bold 2>/dev/null || true)"
+GREY="$(tput setaf 0 2>/dev/null || true)"
+NO_COLOR="$(tput sgr0 2>/dev/null || true)"
+
+debug_mode="${DEBUG:-}"
 version="0.0.1"
 docker="/usr/bin/docker"
 hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
@@ -29,6 +34,26 @@ add_volume() {
   args+=("--volume" "/mnt/sshfs/${hostname}${1}")
 }
 
+# print to stderr when `DEBUG` env var is set
+debug() {
+  if [ ! -z "${debug_mode}" ]; then
+    echo "${BOLD}${GREY}>${NO_COLOR}" "$@" >&2
+  fi
+}
+
+debug_args() {
+  local slash=" \\"
+  debug "\$ ${1}${slash}"
+  shift
+  for arg in "$@"; do
+    if [ "$#" -eq 1 ]; then
+      slash=
+    fi
+    debug "    ${1}${slash}"
+    shift
+  done
+}
+
 forward_port() {
   local num_colons=
   num_colons="$(echo "${1}" | tr -cd : | wc -c)"
@@ -48,7 +73,7 @@ forward_port() {
   if [ -z "${local_port}" ]; then
     local_port="${container_port}"
   fi
-  echo "Forwarding ${container_port}/tcp -> ${ip}:${local_port}"
+  debug "Forwarding ${container_port}/tcp -> ${ip}:${local_port}"
 }
 
 parse_host() {
@@ -90,6 +115,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "${rocker}" -eq 1 ]; then
+  debug_args rockerd "${rocker_hostname}"
   rockerd "${rocker_hostname}"
 
   if [ "${#ports[@]}" -gt 0 ]; then
@@ -99,5 +125,5 @@ if [ "${rocker}" -eq 1 ]; then
   fi
 fi
 
-#node -p "process.argv.slice(1)" "${docker}" "${args[@]}" >&2
+debug_args "${docker}" "${args[@]}"
 exec "${docker}" "${args[@]}"
