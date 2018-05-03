@@ -68,13 +68,26 @@ fn() {
 # https://en.wikibooks.org/wiki/OpenSSH/Cookbook/Multiplexing#Port_Forwarding_After_the_Fact
 publish_ports() {
   local ports=
+  local previous_ports=
   while [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; do
     echo "Checking published docker container ports"
     ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)")"
-    for port in $ports; do
-      echo "Forwarding port ${port}"
-      ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}"
+
+    for port in ${ports}; do
+      if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
+        echo "Publishing port ${port}"
+        ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}"
+      fi
     done
+
+    for port in ${previous_ports}; do
+      if ! echo "${ports}" | grep "${port}" >/dev/null; then
+        echo "Unpublishing port ${port}"
+        ssh -O cancel -L "${port}" -S "${control_socket}" "${hostname}"
+      fi
+    done
+
+    previous_ports="${ports}"
     sleep 5
   done
   echo "Control socket is no longer running, stopping monitoring ports"
