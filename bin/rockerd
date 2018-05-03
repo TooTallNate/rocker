@@ -1,30 +1,83 @@
 #!/bin/sh
-# https://superuser.com/a/918708/41354
 set -euo pipefail
 
-hostname="${1}"
-logfile="$HOME/rockerd.log"
-control_socket_dir="$HOME/.ssh/rocker_connections"
+# Print out the currently bound ports from running docker
+# containers in a syntax compatible with `ssh -L`
+server__get_ports() {
+  set -euo pipefail
+
+  ids="$(docker ps --quiet)"
+  if [ ! -z "${ids}" ]; then
+    echo "${ids}" | xargs -L 1 docker port | awk '{print $3}' | awk -F: '{print $1 ":" $2 ":127.0.0.1:" $2}'
+  fi
+}
+
+# Establishes the main SSH connection with Docker TCP local port forward as
+# well as the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
+server__create_ssh_connection() {
+  set -euo pipefail
+
+  # First detect the ephermeral port that was bound for the reverse `sshfs`
+  tty_name="$(echo "${SSH_TTY}" | sed 's/\/dev\///')"
+  echo "TTY: ${tty_name}"
+
+  ssh_pid="$(ps ax | grep "${tty_name}" | grep ssh | grep -v grep | awk '{print $1}')"
+  echo "PID: ${ssh_pid}"
+
+  port="$(sudo netstat -tap | grep "${ssh_pid}\/sshd" | head -n1 | awk '{print $4}' | awk -F: '{print $2}')"
+  echo "Port: ${port}"
+
+  dir="/"
+  mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
+
+  mkdir -p "${mountpoint}" || sudo umount "${mountpoint}"
+
+  echo "Mounting local filesystem at ${mountpoint}"
+
+  # https://askubuntu.com/a/980257/403009
+  # https://serverfault.com/a/132973/294389
+  ssh_command="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+
+  # `allow_root` is required since dockerd runs as root
+  exec sshfs \
+    -f \
+    -o allow_root \
+    -o reconnect \
+    -o ssh_command="${ssh_command}" \
+    -p "${port}" \
+    "127.0.0.1:${dir}" \
+    "${mountpoint}"
+}
+
+hostname="$1"
+rocker_dir="$HOME/.rocker"
+logfile="${rocker_dir}/rockerd.log"
+control_socket_dir="${rocker_dir}/connections"
 control_socket="${control_socket_dir}/%C.sock"
 
 exit_code() {
   r=0
-  "$@" </dev/null >/dev/null 2>/dev/null || r=$?
+  "$@" </dev/null >/dev/null 2>&1 || r=$?
   echo "${r}"
 }
 
+fn() {
+  declare -f "$1" | tail -n +3 | sed '$ d'
+}
+
+# https://en.wikibooks.org/wiki/OpenSSH/Cookbook/Multiplexing#Port_Forwarding_After_the_Fact
 publish_ports() {
-  local ids=
   local ports=
-  local running=1
-  echo "Watching for published docker container ports"
-  while [ "${running}" -eq 1 ]; do
-    ids="$(rocker -H "ssh://${hostname}" ps --quiet)"
-    echo "${ids}"
-    ports="$(echo "${ids}" | xargs -L 1 rocker -H "ssh://${hostname}" port)"
-    echo "${ports}"
+  while [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; do
+    echo "Checking published docker container ports"
+    ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)")"
+    for port in $ports; do
+      echo "Forwarding port ${port}"
+      ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}"
+    done
     sleep 5
   done
+  echo "Control socket is no longer running, stopping monitoring ports"
 }
 
 # https://stackoverflow.com/a/18622662/376773
@@ -40,6 +93,7 @@ LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
 export LC_HOSTNAME
 
 mkdir -p "${control_socket_dir}"
+chmod 700 "${control_socket_dir}"
 
 echo "Port forwarding remote dockerd to 127.0.0.1:2375" >>"${logfile}"
 ssh -t \
@@ -48,17 +102,16 @@ ssh -t \
   -L "127.0.0.1:2375:127.0.0.1:2375" \
   -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
   "${hostname}" \
-  "$(cat "$(which rockerd-server)")" </dev/tty >>"${logfile}" 2>&1 &
+  "$(fn server__create_ssh_connection)" </dev/tty >>"${logfile}" 2>&1 &
 disown -h
 
-# Disable for now, since it forkbombs :(
-#publish_ports </dev/null >>"${logfile}" 2>&1 &
-#disown -h
-
-# Wait for port 2375 to respond before passing control back to `rocker`
 while [ "$(exit_code curl 127.0.0.1:2375)" -ne 0 ]; do
+  echo Waiting 1 second for port 2375 to respond >>"${logfile}"
   sleep 1
 done
+
+publish_ports </dev/null >>"${logfile}" 2>&1 &
+disown -h
 
 # Due to the `/dev/tty` redirect to ssh, some terminal state gets
 # mangled by now, so attempt to fix it first
