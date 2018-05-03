@@ -70,7 +70,7 @@ publish_ports() {
   local ports=
   local previous_ports=
   while [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; do
-    echo "Checking published docker container ports"
+    #echo "Checking published docker container ports"
     ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)")"
 
     for port in ${ports}; do
