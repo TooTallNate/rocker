@@ -14,18 +14,8 @@ server__get_ports() {
 
 # Establishes the main SSH connection with Docker TCP local port forward as
 # well as the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
-server__create_ssh_connection() {
+server__create_sshfs() {
   set -euo pipefail
-
-  # First detect the ephermeral port that was bound for the reverse `sshfs`
-  tty_name="$(echo "${SSH_TTY}" | sed 's/\/dev\///')"
-  echo "TTY: ${tty_name}"
-
-  ssh_pid="$(ps ax | grep "${tty_name}" | grep ssh | grep -v grep | awk '{print $1}')"
-  echo "PID: ${ssh_pid}"
-
-  port="$(sudo netstat -tap | grep "${ssh_pid}\/sshd" | head -n1 | awk '{print $4}' | awk -F: '{print $2}')"
-  echo "Port: ${port}"
 
   dir="/"
   mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
@@ -44,7 +34,7 @@ server__create_ssh_connection() {
     -o allow_root \
     -o reconnect \
     -o ssh_command="${ssh_command}" \
-    -p "${port}" \
+    -p "${LC_SSHD_PORT}" \
     "127.0.0.1:${dir}" \
     "${mountpoint}"
 }
@@ -99,33 +89,32 @@ if [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; t
   exit 0
 fi
 
-# `LC_` prefix because it's a whitelisted prefix
-# in most `sshd_config` files by default
-# https://superuser.com/a/163228/41354
-LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
-export LC_HOSTNAME
-
 mkdir -p "${control_socket_dir}"
 chmod 700 "${control_socket_dir}"
 
-echo "Port forwarding remote dockerd to 127.0.0.1:2375" >>"${logfile}"
-ssh -t \
-  -o SendEnv=LC_HOSTNAME \
-  -M -S "${control_socket}" \
-  -L "127.0.0.1:2375:127.0.0.1:2375" \
-  -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" \
-  "${hostname}" \
-  "$(fn server__create_ssh_connection)" </dev/tty >>"${logfile}" 2>&1 &
-disown -h
+echo "Establishing SSH control socket" >>"${logfile}"
+ssh -fN -M -S "${control_socket}" "${hostname}"
 
-while [ "$(exit_code curl 127.0.0.1:2375)" -ne 0 ]; do
-  echo Waiting 1 second for port 2375 to respond >>"${logfile}"
-  sleep 1
-done
+ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" "${hostname}"
+echo "Port forwarding remote dockerd to local port 2375" >>"${logfile}"
+
+# `LC_` prefix because it's a whitelisted prefix
+# in most `sshd_config` files by default
+# https://superuser.com/a/163228/41354
+LC_SSHD_PORT="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" "${hostname}")"
+export LC_SSHD_PORT
+echo "Port forwarding local sshd to remote port ${LC_SSHD_PORT}" >>"${logfile}"
+
+LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
+export LC_HOSTNAME
+
+ssh \
+  -o SendEnv=LC_HOSTNAME \
+  -o SendEnv=LC_SSHD_PORT \
+  -S "${control_socket}" \
+  "${hostname}" \
+  "$(fn server__create_sshfs)" </dev/null >>"${logfile}" 2>&1 &
+disown -h
 
 publish_ports </dev/null >>"${logfile}" 2>&1 &
 disown -h
-
-# Due to the `/dev/tty` redirect to ssh, some terminal state gets
-# mangled by now, so attempt to fix it first
-stty sane 2>/dev/null || true
