@@ -5,7 +5,6 @@ set -euo pipefail
 # containers in a syntax compatible with `ssh -L`
 server__get_ports() {
   set -euo pipefail
-
   ids="$(docker ps --quiet)"
   if [ ! -z "${ids}" ]; then
     echo "${ids}" | xargs -L 1 docker port | awk '{print $3}' | awk -F: '{print $1 ":" $2 ":127.0.0.1:" $2}'
@@ -16,12 +15,9 @@ server__get_ports() {
 # well as the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
 server__create_sshfs() {
   set -euo pipefail
-
-  dir="/"
-  mountpoint="/mnt/sshfs/${LC_HOSTNAME}${dir}"
-
-  mkdir -p "${mountpoint}" || sudo umount "${mountpoint}"
-
+  mountpoint="/mnt/sshfs/${LC_HOSTNAME}/"
+  mkdir -p "${mountpoint}" 2>/dev/null ||:
+  sudo umount "${mountpoint}" 2>/dev/null ||:
   echo "Mounting local filesystem at ${mountpoint}"
 
   # https://askubuntu.com/a/980257/403009
@@ -35,8 +31,7 @@ server__create_sshfs() {
     -o reconnect \
     -o ssh_command="${ssh_command}" \
     -p "${LC_SSHD_PORT}" \
-    "127.0.0.1:${dir}" \
-    "${mountpoint}"
+    "127.0.0.1:/" "${mountpoint}"
 }
 
 hostname="$1"
@@ -116,5 +111,6 @@ ssh \
   "$(fn server__create_sshfs)" </dev/null >>"${logfile}" 2>&1 &
 disown -h
 
+echo "Monitoring published ports" >>"${logfile}"
 publish_ports </dev/null >>"${logfile}" 2>&1 &
 disown -h
