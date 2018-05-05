@@ -1,5 +1,8 @@
 #!/bin/sh
 set -euo pipefail
+BOLD="$(tput bold 2>/dev/null || true)"
+GREY="$(tput setaf 0 2>/dev/null || true)"
+NO_COLOR="$(tput sgr0 2>/dev/null || true)"
 
 # Print out the currently bound ports from running docker
 # containers in a syntax compatible with `ssh -L`
@@ -34,11 +37,19 @@ server__create_sshfs() {
     "127.0.0.1:/" "${mountpoint}"
 }
 
+debug_mode="${DEBUG:-}"
 hostname="$1"
 rocker_dir="$HOME/.rocker"
 logfile="${rocker_dir}/rockerd.log"
 control_socket_dir="${rocker_dir}/connections"
 control_socket="${control_socket_dir}/%C.sock"
+
+# print to stderr when `DEBUG` env var is set
+debug() {
+  if [ ! -z "${debug_mode}" ]; then
+    echo "${BOLD}${GREY}>${NO_COLOR}" "$@" >&2
+  fi
+}
 
 is_connected() {
   ssh -O check -S "${control_socket}" "${hostname}" </dev/null >/dev/null 2>&1
@@ -78,7 +89,7 @@ publish_ports() {
 
 # https://stackoverflow.com/a/18622662/376773
 if is_connected; then
-  #echo "Server is already running: $0 $*"
+  debug "rockerd daemon is already running for ${hostname}"
   exit 0
 fi
 

@@ -85,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "${rocker}" -eq 1 ]; then
-  debug_args rockerd "${rocker_hostname}"
+  debug '$' rockerd "${rocker_hostname}"
   rockerd "${rocker_hostname}"
 fi
 
