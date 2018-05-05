@@ -40,10 +40,8 @@ logfile="${rocker_dir}/rockerd.log"
 control_socket_dir="${rocker_dir}/connections"
 control_socket="${control_socket_dir}/%C.sock"
 
-exit_code() {
-  r=0
-  "$@" </dev/null >/dev/null 2>&1 || r=$?
-  echo "${r}"
+is_connected() {
+  ssh -O check -S "${control_socket}" "${hostname}" </dev/null >/dev/null 2>&1
 }
 
 fn() {
@@ -54,7 +52,7 @@ fn() {
 publish_ports() {
   local ports=
   local previous_ports=
-  while [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; do
+  while is_connected; do
     #echo "Checking published docker container ports"
     ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)")"
 
@@ -79,7 +77,7 @@ publish_ports() {
 }
 
 # https://stackoverflow.com/a/18622662/376773
-if [ "$(exit_code ssh -O check -S "${control_socket}" "${hostname}")" -eq 0 ]; then
+if is_connected; then
   #echo "Server is already running: $0 $*"
   exit 0
 fi
