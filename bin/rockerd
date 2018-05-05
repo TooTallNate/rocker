@@ -44,11 +44,12 @@ logfile="${rocker_dir}/rockerd.log"
 control_socket_dir="${rocker_dir}/connections"
 control_socket="${control_socket_dir}/%C.sock"
 
-# print to stderr when `DEBUG` env var is set
+# print to stderr when `DEBUG` env var is set, and also log to the logfile
 debug() {
   if [ ! -z "${debug_mode}" ]; then
     echo "${BOLD}${GREY}>${NO_COLOR}" "$@" >&2
   fi
+  echo "$@" >>"${logfile}"
 }
 
 is_connected() {
@@ -96,18 +97,18 @@ fi
 mkdir -p "${control_socket_dir}"
 chmod 700 "${control_socket_dir}"
 
-echo "Establishing SSH control socket to ${hostname}" >>"${logfile}"
+debug "Establishing SSH control socket to ${hostname}"
 ssh -fN -M -S "${control_socket}" "${hostname}"
 
 ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" "${hostname}"
-echo "Port forwarding remote dockerd to local port 2375" >>"${logfile}"
+debug "Port forwarding remote dockerd to local port 2375"
 
 # `LC_` prefix because it's a whitelisted prefix
 # in most `sshd_config` files by default
 # https://superuser.com/a/163228/41354
 LC_SSHD_PORT="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" "${hostname}")"
 export LC_SSHD_PORT
-echo "Port forwarding local sshd to remote port ${LC_SSHD_PORT}" >>"${logfile}"
+debug "Port forwarding local sshd to remote port ${LC_SSHD_PORT}"
 
 LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
 export LC_HOSTNAME
@@ -120,6 +121,6 @@ ssh \
   "$(fn server__create_sshfs)" </dev/null >>"${logfile}" 2>&1 &
 disown -h
 
-echo "Monitoring published ports" >>"${logfile}"
+debug "Monitoring published ports"
 publish_ports </dev/null >>"${logfile}" 2>&1 &
 disown -h
