@@ -61,14 +61,14 @@ publish_ports() {
     for port in ${ports}; do
       if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
         echo "Publishing port ${port}"
-        ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}"
+        ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}" ||:
       fi
     done
 
     for port in ${previous_ports}; do
       if ! echo "${ports}" | grep "${port}" >/dev/null; then
         echo "Unpublishing port ${port}"
-        ssh -O cancel -L "${port}" -S "${control_socket}" "${hostname}"
+        ssh -O cancel -L "${port}" -S "${control_socket}" "${hostname}" ||:
       fi
     done
 
@@ -87,7 +87,7 @@ fi
 mkdir -p "${control_socket_dir}"
 chmod 700 "${control_socket_dir}"
 
-echo "Establishing SSH control socket" >>"${logfile}"
+echo "Establishing SSH control socket to ${hostname}" >>"${logfile}"
 ssh -fN -M -S "${control_socket}" "${hostname}"
 
 ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" "${hostname}"
