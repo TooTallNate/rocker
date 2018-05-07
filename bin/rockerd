@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -euo pipefail
 BOLD="$(tput bold 2>/dev/null || true)"
 GREY="$(tput setaf 0 2>/dev/null || true)"
@@ -66,7 +66,7 @@ publish_ports() {
   local previous_ports=
   while is_connected; do
     #echo "Checking published docker container ports"
-    ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)")"
+    ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)" ||:)"
 
     for port in ${ports}; do
       if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then

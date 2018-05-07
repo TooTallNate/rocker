@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -euo pipefail
 BOLD="$(tput bold 2>/dev/null || true)"
 GREY="$(tput setaf 0 2>/dev/null || true)"
@@ -21,7 +21,6 @@ if [ $# -eq 1 ] && [ "$1" = "-v" -o "$1" = "--version" ]; then
 fi
 
 args=()
-ports=()
 rocker=0
 rocker_hostname=""
 
@@ -44,8 +43,7 @@ debug_args() {
     if [ "$#" -eq 1 ]; then
       slash=
     fi
-    debug "    ${1}${slash}"
-    shift
+    debug "    ${arg}${slash}"
   done
 }
 
