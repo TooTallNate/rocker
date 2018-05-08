@@ -1,4 +1,4 @@
-# Rocker <img width="38" src="https://camo.githubusercontent.com/cd082848a3f8f00d426e36a8fe232a8d44b0e9c6/68747470733a2f2f656d6f6a692e736c61636b2d656467652e636f6d2f5430434151303054552f726f636b6f75742f326631653833663338623161643435392e676966" style="vertical-align: bottom;" />
+# Rocker <img width="38" src="https://camo.githubusercontent.com/cd082848a3f8f00d426e36a8fe232a8d44b0e9c6/68747470733a2f2f656d6f6a692e736c61636b2d656467652e636f6d2f5430434151303054552f726f636b6f75742f326631653833663338623161643435392e676966" />
 
 **R**emote D**ocker** is a small wrapper around the `docker` client that
 extends it with support for securely connecting to a remote `dockerd` daemon
