@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
-BOLD="$(tput bold 2>/dev/null || true)"
-GREY="$(tput setaf 0 2>/dev/null || true)"
-NO_COLOR="$(tput sgr0 2>/dev/null || true)"
+c() {
+  tput "$@" 2>/dev/null ||:
+}
+BOLD="$(c bold)"
+GREY="$(c setaf 0)"
+NO_COLOR="$(c sgr0)"
 
 # Print out the currently bound ports from running docker
 # containers in a syntax compatible with `ssh -L`
