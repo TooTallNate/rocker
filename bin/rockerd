@@ -49,7 +49,9 @@ debug() {
   if [ ! -z "${debug_mode}" ]; then
     echo "${BOLD}${GREY}>${NO_COLOR}" "$@" >&2
   fi
-  echo "$@" >>"${logfile}"
+  if [ -z "${NO_LOGFILE:-}" ]; then
+    echo "$@" >>"${logfile}"
+  fi
 }
 
 is_connected() {
@@ -90,7 +92,7 @@ publish_ports() {
 
 # https://stackoverflow.com/a/18622662/376773
 if is_connected; then
-  debug "rockerd daemon is already running for ${hostname}"
+  NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
   exit 0
 fi
 
