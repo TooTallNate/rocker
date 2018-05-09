@@ -86,8 +86,8 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "${rocker}" -eq 1 ]; then
-  debug '$' rockerd "${rocker_hostname}"
-  rockerd "${rocker_hostname}"
+  debug '$' sudo -E rockerd "${rocker_hostname}"
+  sudo -E rockerd "${rocker_hostname}"
 fi
 
 debug_args "${docker}" "${args[@]}"

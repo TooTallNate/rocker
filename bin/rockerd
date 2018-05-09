@@ -58,7 +58,7 @@ debug() {
 }
 
 is_connected() {
-  ssh -O check -S "${control_socket}" "${hostname}" </dev/null >/dev/null 2>&1
+  ssh -O check -S "${control_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
 }
 
 fn() {
@@ -71,19 +71,19 @@ publish_ports() {
   local previous_ports=
   while is_connected; do
     #echo "Checking published docker container ports"
-    ports="$(ssh -S "${control_socket}" "${hostname}" "$(fn server__get_ports)" ||:)"
+    ports="$(ssh -S "${control_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)" ||:)"
 
     for port in ${ports}; do
       if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
         echo "Publishing port ${port}"
-        ssh -O forward -L "${port}" -S "${control_socket}" "${hostname}" ||:
+        ssh -O forward -L "${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}" ||:
       fi
     done
 
     for port in ${previous_ports}; do
       if ! echo "${ports}" | grep "${port}" >/dev/null; then
         echo "Unpublishing port ${port}"
-        ssh -O cancel -L "${port}" -S "${control_socket}" "${hostname}" ||:
+        ssh -O cancel -L "${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}" ||:
       fi
     done
 
@@ -103,27 +103,29 @@ mkdir -p "${control_socket_dir}"
 chmod 700 "${control_socket_dir}"
 
 debug "Establishing SSH control socket to ${hostname}"
-ssh -fN -M -S "${control_socket}" "${hostname}"
+ssh -fN -M -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 
-ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" "${hostname}"
+ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 debug "Port forwarding remote dockerd to local port 2375"
 
 # `LC_` prefix because it's a whitelisted prefix
 # in most `sshd_config` files by default
 # https://superuser.com/a/163228/41354
-LC_SSHD_PORT="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" "${hostname}")"
+LC_SSHD_PORT="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
 export LC_SSHD_PORT
 debug "Port forwarding local sshd to remote port ${LC_SSHD_PORT}"
 
 LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
 export LC_HOSTNAME
 
+sshfs_script="LC_HOSTNAME=\"${LC_HOSTNAME}\""$'\n'"LC_SSHD_PORT=\"${LC_SSHD_PORT}\""$'\n'"$(fn server__create_sshfs)"
+#echo "${sshfs_script}"
+
 ssh \
-  -o SendEnv=LC_HOSTNAME \
-  -o SendEnv=LC_SSHD_PORT \
   -S "${control_socket}" \
+  -F ~/.ssh/config \
   "${hostname}" \
-  "$(fn server__create_sshfs)" </dev/null >>"${logfile}" 2>&1 &
+  "${sshfs_script}" </dev/null >>"${logfile}" 2>&1 &
 disown -h
 
 debug "Monitoring published ports"
