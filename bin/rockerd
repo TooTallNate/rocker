@@ -21,7 +21,7 @@ server__get_ports() {
 # well as the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
 server__create_sshfs() {
   set -euo pipefail
-  mountpoint="/mnt/sshfs/${LC_HOSTNAME}/"
+  mountpoint="/mnt/sshfs/${ssh_hostname}/"
   mkdir -p "${mountpoint}" 2>/dev/null ||:
   sudo umount "${mountpoint}" 2>/dev/null ||:
   echo "Mounting local filesystem at ${mountpoint}"
@@ -36,7 +36,7 @@ server__create_sshfs() {
     -o allow_root \
     -o reconnect \
     -o ssh_command="${ssh_command}" \
-    -p "${LC_SSHD_PORT}" \
+    -p "${sshd_port}" \
     "127.0.0.1:/" "${mountpoint}"
 }
 
@@ -108,17 +108,12 @@ ssh -fN -M -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 debug "Port forwarding remote dockerd to local port 2375"
 
-# `LC_` prefix because it's a whitelisted prefix
-# in most `sshd_config` files by default
-# https://superuser.com/a/163228/41354
-LC_SSHD_PORT="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
-export LC_SSHD_PORT
-debug "Port forwarding local sshd to remote port ${LC_SSHD_PORT}"
+sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
+debug "Port forwarding local sshd to remote port ${sshd_port}"
 
-LC_HOSTNAME="$(hostname | tr '[:upper:]' '[:lower:]')"
-export LC_HOSTNAME
+ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
 
-sshfs_script="LC_HOSTNAME=\"${LC_HOSTNAME}\""$'\n'"LC_SSHD_PORT=\"${LC_SSHD_PORT}\""$'\n'"$(fn server__create_sshfs)"
+sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
 #echo "${sshfs_script}"
 
 ssh \
