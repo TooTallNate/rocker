@@ -40,12 +40,25 @@ server__create_sshfs() {
     "127.0.0.1:/" "${mountpoint}"
 }
 
+# This is basically an emulation of the `%C` ssh formatter, but we need
+# to calculate the value ourselves since the same hash will be used
+# for the `ports` file
+get_hostname_hash() {
+  local config="$(ssh -F ~/.ssh/config -G "$1")"
+  local localhostname="$(hostname)"
+  local hostname="$(echo "${config}" | grep hostname | head -n1 | awk '{print $2}')"
+  local port="$(echo "${config}" | grep port | head -n1 | awk '{print $2}')"
+  local user="$(echo "${config}" | grep user | head -n1 | awk '{print $2}')"
+  printf "${localhostname}${user}${hostname}${port}" | sha1sum | awk '{print $1}'
+}
+
 debug_mode="${DEBUG:-}"
 hostname="$1"
+hostname_hash="$(get_hostname_hash "${hostname}")"
 rocker_dir="$HOME/.rocker"
 logfile="${rocker_dir}/rockerd.log"
 control_socket_dir="${rocker_dir}/connections"
-control_socket="${control_socket_dir}/%C.sock"
+control_socket="${control_socket_dir}/${hostname_hash}.sock"
 
 # print to stderr when `DEBUG` env var is set, and also log to the logfile
 debug() {
@@ -99,11 +112,17 @@ if is_connected; then
   exit 0
 fi
 
+owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
 mkdir -p "${control_socket_dir}"
+chown "${owner}" "${control_socket_dir}"
 chmod 700 "${control_socket_dir}"
 
+touch "${logfile}"
+chown "${owner}" "${logfile}"
+
 debug "Establishing SSH control socket to ${hostname}"
-ssh -fN -M -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
+chown "${owner}" "${control_socket}"
 
 ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 debug "Port forwarding remote dockerd to local port 2375"
