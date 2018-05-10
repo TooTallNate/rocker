@@ -45,13 +45,14 @@ $ docker run --rm -p 80:80 nginx
     friends.
  1. Set the `DOCKER_HOST` env var or use `docker -H` with an `ssh://` protocol to
     invoke "rocker".
- 1. To avoid getting a `Password:` prompt every time you invoke docker, you must
-    add to the end of your `/etc/sudoers` file (replace `YOUR_USERNAME` with your
-    actual username):
+ 1. To avoid getting a `Password:` prompt every time you invoke `docker`, you
+    must add to the end of your `/etc/sudoers` file:
     ```
-    # Make `rockerd` work with `sudo` without password
+    # Make `sudo -E rockerd` work with without a password
     YOUR_USERNAME ALL=(root) NOPASSWD:SETENV: /usr/local/bin/rockerd
     ```
+    Be sure to replace `YOUR_USERNAME` with your actual username, and update the
+    file location if you installed it to a non-default location.
 
 ### Server
 
