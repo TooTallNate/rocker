@@ -77,11 +77,14 @@ is_connected() {
 }
 
 # https://stackoverflow.com/a/6943581/376773
-function get_unused_port() {
+port_in_use() {
+  printf "\035" | nc 127.0.0.1 "$1" </dev/null >/dev/null 2>&1
+}
+
+get_unused_port() {
   for port in $(seq "$(shuf -i 2000-65000 -n 1)" 65000);
   do
-    printf "\035" | telnet 127.0.0.1 $port >/dev/null 2>&1 || \
-      echo "$port" && break;
+    port_in_use "${port}" || echo "$port" && break;
   done
 }
 
