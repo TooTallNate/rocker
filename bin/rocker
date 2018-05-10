@@ -55,9 +55,9 @@ parse_host() {
   if [ "$(echo "${host}" | awk -F:// '{print $1}')" = "ssh" ]; then
     rocker=1
     rocker_hostname="$(echo "${host}" | awk -F:// '{print $2}')"
-    host="tcp://127.0.0.1:2375"
+  else
+    args+=("--host" "${host}")
   fi
-  args+=("--host" "${host}")
 }
 
 # Parse $DOCKER_HOST environment variable
@@ -87,8 +87,9 @@ done
 
 if [ "${rocker}" -eq 1 ]; then
   debug '$' sudo -E rockerd "${rocker_hostname}"
-  sudo -E rockerd "${rocker_hostname}"
+  port="$(sudo -E rockerd "${rocker_hostname}")"
+  host_arg="--host tcp://127.0.0.1:${port}"
 fi
 
-debug_args "${docker}" "${args[@]}"
-exec "${docker}" "${args[@]}"
+debug_args "${docker}" $host_arg "${args[@]}"
+exec "${docker}" $host_arg "${args[@]}"

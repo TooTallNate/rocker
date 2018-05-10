@@ -40,26 +40,6 @@ server__create_sshfs() {
     "127.0.0.1:/" "${mountpoint}"
 }
 
-# This is basically an emulation of the `%C` ssh formatter, but we need
-# to calculate the value ourselves since the same hash will be used
-# for the `ports` file
-get_hostname_hash() {
-  local config="$(ssh -F ~/.ssh/config -G "$1")"
-  local localhostname="$(hostname)"
-  local hostname="$(echo "${config}" | grep hostname | head -n1 | awk '{print $2}')"
-  local port="$(echo "${config}" | grep port | head -n1 | awk '{print $2}')"
-  local user="$(echo "${config}" | grep user | head -n1 | awk '{print $2}')"
-  printf "${localhostname}${user}${hostname}${port}" | sha1sum | awk '{print $1}'
-}
-
-debug_mode="${DEBUG:-}"
-hostname="$1"
-hostname_hash="$(get_hostname_hash "${hostname}")"
-rocker_dir="$HOME/.rocker"
-logfile="${rocker_dir}/rockerd.log"
-control_socket_dir="${rocker_dir}/connections"
-control_socket="${control_socket_dir}/${hostname_hash}.sock"
-
 # print to stderr when `DEBUG` env var is set, and also log to the logfile
 debug() {
   if [ ! -z "${debug_mode}" ]; then
@@ -70,8 +50,40 @@ debug() {
   fi
 }
 
+# This is basically an emulation of the `%C` ssh formatter, but we need
+# to calculate the value ourselves since the same hash will be used
+# for the `port` file
+get_hostname_hash() {
+  local config="$(ssh -F ~/.ssh/config -G "$1")"
+  local localhostname="$(hostname)"
+  local hostname="$(echo "${config}" | grep hostname | head -n1 | awk '{print $2}')"
+  local port="$(echo "${config}" | grep port | head -n1 | awk '{print $2}')"
+  local user="$(echo "${config}" | grep user | head -n1 | awk '{print $2}')"
+  printf "${localhostname}${user}${hostname}${port}" | sha1sum | awk '{print $1}'
+}
+
+debug_mode="${DEBUG:-}"
+rocker_dir="$HOME/.rocker"
+logfile="${rocker_dir}/rockerd.log"
+hostname="$1"
+hostname_hash="$(get_hostname_hash "${hostname}")"
+control_socket_dir="${rocker_dir}/connections"
+control_socket="${control_socket_dir}/${hostname_hash}.sock"
+port_dir="${rocker_dir}/ports"
+port_file="${port_dir}/${hostname_hash}"
+
 is_connected() {
   ssh -O check -S "${control_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
+}
+
+# This is racey, but will probably work 99.9% of the time.
+# https://stackoverflow.com/a/6943581/376773
+function get_unused_port() {
+  for port in $(seq "$(shuf -i 2000-65000 -n 1)" 65000);
+  do
+    printf "\035" | telnet 127.0.0.1 $port >/dev/null 2>&1 || \
+      echo "$port" && break;
+  done
 }
 
 fn() {
@@ -104,18 +116,20 @@ publish_ports() {
     sleep 5
   done
   echo "Control socket is no longer running, stopping monitoring ports"
+  rm -vf "${port_file}" ||:
 }
 
 # https://stackoverflow.com/a/18622662/376773
 if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
+  cat "${port_file}"
   exit 0
 fi
 
 owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
-mkdir -p "${control_socket_dir}"
-chown "${owner}" "${control_socket_dir}"
-chmod 700 "${control_socket_dir}"
+mkdir -p "${control_socket_dir}" "${port_dir}"
+chown "${owner}" "${control_socket_dir}" "${port_dir}"
+chmod 700 "${control_socket_dir}" "${port_dir}"
 
 touch "${logfile}"
 chown "${owner}" "${logfile}"
@@ -124,8 +138,11 @@ debug "Establishing SSH control socket to ${hostname}"
 ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
 chown "${owner}" "${control_socket}"
 
-ssh -O forward -L "127.0.0.1:2375:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
-debug "Port forwarding remote dockerd to local port 2375"
+docker_port="$(get_unused_port)"
+ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
+printf "${docker_port}" > "${port_file}"
+chown "${owner}" "${port_file}"
 
 sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
 debug "Port forwarding local sshd to remote port ${sshd_port}"
@@ -145,3 +162,6 @@ disown -h
 debug "Monitoring published ports"
 publish_ports </dev/null >>"${logfile}" 2>&1 &
 disown -h
+
+# All done! Let `rocker` know which port to use
+echo "${docker_port}"
