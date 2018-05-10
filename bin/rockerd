@@ -76,7 +76,6 @@ is_connected() {
   ssh -O check -S "${control_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
 }
 
-# This is racey, but will probably work 99.9% of the time.
 # https://stackoverflow.com/a/6943581/376773
 function get_unused_port() {
   for port in $(seq "$(shuf -i 2000-65000 -n 1)" 65000);
@@ -138,10 +137,13 @@ debug "Establishing SSH control socket to ${hostname}"
 ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
 chown "${owner}" "${control_socket}"
 
+# Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
+# so an unused port is first determined and then used in the ssh call afterwards.
+# https://superuser.com/q/919808/41354
 docker_port="$(get_unused_port)"
 ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
 debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
-printf "${docker_port}" > "${port_file}"
+echo "${docker_port}" > "${port_file}"
 chown "${owner}" "${port_file}"
 
 sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
