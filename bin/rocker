@@ -18,7 +18,7 @@ if [ -f "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
 fi
 
 if [ $# -eq 1 ] && [ "$1" = "-v" -o "$1" = "--version" ]; then
-  docker_version="$("${docker}" "$@")"
+  docker_version="$(DOCKER_HOST= "${docker}" "$@")"
   echo "${docker_version} (rocker version ${version})"
   exit 0
 fi
