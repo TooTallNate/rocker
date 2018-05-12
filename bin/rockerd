@@ -112,7 +112,7 @@ publish_ports() {
     sleep 5
   done
   echo "Control socket is no longer running, stopping monitoring ports"
-  rm -vf "${port_file}" ||:
+  rm -f "${port_file}" ||:
 }
 
 # https://stackoverflow.com/a/18622662/376773
