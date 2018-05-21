@@ -137,12 +137,33 @@ fn() {
   declare -f "$1" | tail -n +3 | sed '$ d'
 }
 
+# Monitors the dockerd daemon for "network" events related to port forwarding.
+# This function is meant to be read one-line at a time with `read -r`.
+wait_for_network_events() {
+  # `date` forces an immediate ports check upon startup
+  date
+  if has_dep jq; then
+    dockerd_get events --no-buffer | while read -r line; do
+      action="$(echo "$line" | jq -r '.Action')"
+      if [ "${action}" = "start" -o "${action}" = "destroy" ]; then
+        echo "$line"
+      fi
+    done
+  else
+    # fall back to polling
+    while is_connected; do
+      sleep 5
+      date
+    done
+  fi
+}
+
 # https://en.wikibooks.org/wiki/OpenSSH/Cookbook/Multiplexing#Port_Forwarding_After_the_Fact
 monitor_ports() {
   local ports=
   local previous_ports=
-  while is_connected; do
-    #echo "Checking published docker container ports"
+  wait_for_network_events | while read -r line; do
+    echo "Checking published docker container ports"
     ports="$(get_ports ||:)"
 
     for port in ${ports}; do
@@ -160,8 +181,7 @@ monitor_ports() {
     done
 
     previous_ports="${ports}"
-    sleep 5
-  done
+  done ||:
   echo "Control socket is no longer running, stopping monitoring ports"
   rm -f "${port_file}" ||:
 }
