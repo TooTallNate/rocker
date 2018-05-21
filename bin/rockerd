@@ -18,7 +18,7 @@ server__get_ports() {
   set -euo pipefail
   ids="$(docker ps --quiet)"
   if [ ! -z "${ids}" ]; then
-    echo "${ids}" | xargs -L 1 docker port | awk '{print $3}' | awk -F: '{print $1 ":" $2 ":127.0.0.1:" $2}'
+    echo "${ids}" | xargs -L 1 docker port | awk '{print $3}'
   fi
 }
 
@@ -76,6 +76,47 @@ control_socket="${control_socket_dir}/%C.sock"
 port_dir="${rocker_dir}/ports"
 port_file="${port_dir}/${hostname_hash}"
 
+# Exits 0 if dependency is present in $PATH, or 1 if not
+has_dep() {
+  hash "$@" </dev/null >/dev/null 2>&1
+}
+
+dockerd_get() {
+  local endpoint="$1"
+  shift
+  curl --fail --silent --show-error "127.0.0.1:$(cat "${port_file}")/v1.18/${endpoint}" "$@"
+}
+
+get_ports() {
+  if has_dep jq; then
+    dockerd_get containers/json | \
+      jq -r '.[].Ports[] | select(.Type = "tcp") | .IP + ":" + (.PublicPort|tostring)'
+  else
+    ssh -S "${control_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)"
+  fi
+}
+
+forward_port() {
+  local host=
+  local port=
+  if echo "$2" | grep ':' >/dev/null; then
+    host="$(echo "$2" | awk -F: '{print $1}')"
+    port="$(echo "$2" | awk -F: '{print $2}')"
+  else
+    host="0.0.0.0"
+    port="$2"
+  fi
+  ssh -O "$1" -L "${host}:${port}:127.0.0.1:${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+}
+
+publish_port() {
+  forward_port forward "$1"
+}
+
+unpublish_port() {
+  forward_port cancel "$1"
+}
+
 is_connected() {
   ssh -O check -S "${control_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
 }
@@ -102,19 +143,19 @@ monitor_ports() {
   local previous_ports=
   while is_connected; do
     #echo "Checking published docker container ports"
-    ports="$(ssh -S "${control_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)" ||:)"
+    ports="$(get_ports ||:)"
 
     for port in ${ports}; do
       if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
         echo "Publishing port ${port}"
-        ssh -O forward -L "${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}" ||:
+        publish_port "${port}" ||:
       fi
     done
 
     for port in ${previous_ports}; do
       if ! echo "${ports}" | grep "${port}" >/dev/null; then
         echo "Unpublishing port ${port}"
-        ssh -O cancel -L "${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}" ||:
+        unpublish_port "${port}" ||:
       fi
     done
 
