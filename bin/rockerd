@@ -1,5 +1,10 @@
 #!/bin/bash
 set -euo pipefail
+
+if [ "$EUID" -ne 0 ]; then
+  exec sudo -E "$0" "$@"
+fi
+
 c() {
   tput "$@" 2>/dev/null ||:
 }
