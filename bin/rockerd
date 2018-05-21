@@ -120,6 +120,18 @@ monitor_ports() {
   rm -f "${port_file}" ||:
 }
 
+if [ ! -z "${1:-}" ]; then
+  if fn "$1" >/dev/null; then
+    # direct function invocation
+    r=0
+    "$@" || r=$?
+    exit "$r"
+  else
+    echo "ERROR: \"$1\" is not a valid sub-command" >&2
+    exit 2
+  fi
+fi
+
 # https://stackoverflow.com/a/18622662/376773
 if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
