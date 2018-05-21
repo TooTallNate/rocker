@@ -58,7 +58,13 @@ get_hostname_hash() {
 debug_mode="${DEBUG:-}"
 rocker_dir="$HOME/.rocker"
 logfile="${rocker_dir}/rockerd.log"
-hostname="$1"
+hostname="${1:-}"
+if [ -z "${hostname}" ]; then
+  echo "FATAL: An SSH hostname is required!" >&2
+  exit 2
+fi
+shift
+
 hostname_hash="$(get_hostname_hash "${hostname}")"
 control_socket_dir="${rocker_dir}/connections"
 control_socket="${control_socket_dir}/%C.sock"
