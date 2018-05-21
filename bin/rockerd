@@ -17,8 +17,7 @@ server__get_ports() {
   fi
 }
 
-# Establishes the main SSH connection with Docker TCP local port forward as
-# well as the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
+# Establishes the reverse `sshfs` tunnel (https://superuser.com/a/918708/41354)
 server__create_sshfs() {
   set -euo pipefail
   mountpoint="/mnt/sshfs/${ssh_hostname}/"
