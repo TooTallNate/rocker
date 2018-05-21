@@ -92,7 +92,7 @@ fn() {
 }
 
 # https://en.wikibooks.org/wiki/OpenSSH/Cookbook/Multiplexing#Port_Forwarding_After_the_Fact
-publish_ports() {
+monitor_ports() {
   local ports=
   local previous_ports=
   while is_connected; do
@@ -164,7 +164,7 @@ ssh \
 disown -h
 
 debug "Monitoring published ports"
-publish_ports </dev/null >>"${logfile}" 2>&1 &
+monitor_ports </dev/null >>"${logfile}" 2>&1 &
 disown -h
 
 # All done! Let `rocker` know which port to use
