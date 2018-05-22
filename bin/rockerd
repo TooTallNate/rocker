@@ -60,15 +60,40 @@ get_hostname_hash() {
   ssh -F ~/.ssh/config -G -S "%C" "$1" | grep controlpath | head -n1 | awk '{print $2}'
 }
 
+# Strip the `ssh://` prefix, if present
+parse_host() {
+  echo "$1" | sed 's|ssh://||'
+}
+
+if [ ! -z "${DOCKER_HOST:-}" ]; then
+  hostname="$(parse_host "${DOCKER_HOST}")"
+fi
+
 debug_mode="${DEBUG:-}"
 rocker_dir="$HOME/.rocker"
 logfile="${rocker_dir}/rockerd.log"
-hostname="${1:-}"
+
+# Parse argv
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -H=*|--host=*) hostname="$(parse_host "${1#*=}")"; shift 1;;
+    -H|--host) hostname="$(parse_host "${2}")"; shift 2;;
+    *) args+=("${1}"); shift 1;;
+  esac
+done
+
+if [ "${#args[@]}" -gt 0 ]; then
+  subcommand="${args[0]}"
+  args=("${args[@]:1}")
+else
+  subcommand="port"
+fi
+
 if [ -z "${hostname}" ]; then
   echo "FATAL: An SSH hostname is required!" >&2
   exit 2
 fi
-shift
 
 hostname_hash="$(get_hostname_hash "${hostname}")"
 control_socket_dir="${rocker_dir}/connections"
@@ -107,14 +132,6 @@ forward_port() {
     port="$2"
   fi
   ssh -O "$1" -L "${host}:${port}:127.0.0.1:${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
-}
-
-publish_port() {
-  forward_port forward "$1"
-}
-
-unpublish_port() {
-  forward_port cancel "$1"
 }
 
 is_connected() {
@@ -169,81 +186,94 @@ monitor_ports() {
     for port in ${ports}; do
       if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
         echo "Publishing port ${port}"
-        publish_port "${port}" ||:
+        forward_port forward "${port}" ||:
       fi
     done
 
     for port in ${previous_ports}; do
       if ! echo "${ports}" | grep "${port}" >/dev/null; then
         echo "Unpublishing port ${port}"
-        unpublish_port "${port}" ||:
+        forward_port cancel "${port}" ||:
       fi
     done
 
     previous_ports="${ports}"
   done ||:
-  echo "Control socket is no longer running, stopping monitoring ports"
+  echo "Control socket is no longer running, cleaning up…"
   rm -f "${port_file}" ||:
 }
 
-if [ ! -z "${1:-}" ]; then
-  if fn "$1" >/dev/null; then
-    # direct function invocation
-    r=0
-    "$@" || r=$?
-    exit "$r"
+# Sub-commands
+port() {
+  local action="${1:-}"
+  if [ -z "${action}" ]; then
+    cat "${port_file}"
   else
-    echo "ERROR: \"$1\" is not a valid sub-command" >&2
-    exit 2
+    shift
+    if [ "${action}" = "publish" ]; then
+      action="forward"
+    elif [ "${action}" = "unpublish" ]; then
+      action="cancel"
+    fi
+    echo forward_port "${action}" "$@"
+    forward_port "${action}" "$@"
+    # TODO: add/remove from an explicit forwards file
   fi
-fi
+}
+# End of sub-commands
 
 # https://stackoverflow.com/a/18622662/376773
 if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
-  cat "${port_file}"
-  exit 0
+else
+  owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
+  mkdir -p "${control_socket_dir}" "${port_dir}"
+  chown "${owner}" "${control_socket_dir}" "${port_dir}"
+  #chmod 700 "${control_socket_dir}" "${port_dir}"
+
+  touch "${logfile}"
+  chown "${owner}" "${logfile}"
+
+  debug "Establishing SSH control socket to ${hostname}"
+  ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
+  chown "${owner}" "$(echo "${control_socket}" | sed "s/\%C/${hostname_hash}/")"
+
+  # Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
+  # so an unused port is first determined and then used in the ssh call afterwards.
+  # https://superuser.com/q/919808/41354
+  docker_port="$(get_unused_port)"
+  ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+  debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
+  echo "${docker_port}" > "${port_file}"
+  chown "${owner}" "${port_file}"
+
+  sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
+  debug "Port forwarding local sshd to remote port ${sshd_port}"
+
+  ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
+
+  sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
+  #echo "${sshfs_script}"
+
+  ssh \
+    -S "${control_socket}" \
+    -F ~/.ssh/config \
+    "${hostname}" \
+    "${sshfs_script}" </dev/null >>"${logfile}" 2>&1 &
+  disown -h
+
+  debug "Monitoring published ports"
+  monitor_ports </dev/null >>"${logfile}" 2>&1 &
+  disown -h
 fi
 
-owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
-mkdir -p "${control_socket_dir}" "${port_dir}"
-chown "${owner}" "${control_socket_dir}" "${port_dir}"
-chmod 700 "${control_socket_dir}" "${port_dir}"
-
-touch "${logfile}"
-chown "${owner}" "${logfile}"
-
-debug "Establishing SSH control socket to ${hostname}"
-ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
-chown "${owner}" "$(echo "${control_socket}" | sed "s/\%C/${hostname_hash}/")"
-
-# Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
-# so an unused port is first determined and then used in the ssh call afterwards.
-# https://superuser.com/q/919808/41354
-docker_port="$(get_unused_port)"
-ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
-debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
-echo "${docker_port}" > "${port_file}"
-chown "${owner}" "${port_file}"
-
-sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
-debug "Port forwarding local sshd to remote port ${sshd_port}"
-
-ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
-
-sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
-#echo "${sshfs_script}"
-
-ssh \
-  -S "${control_socket}" \
-  -F ~/.ssh/config \
-  "${hostname}" \
-  "${sshfs_script}" </dev/null >>"${logfile}" 2>&1 &
-disown -h
-
-debug "Monitoring published ports"
-monitor_ports </dev/null >>"${logfile}" 2>&1 &
-disown -h
-
-# All done! Let `rocker` know which port to use
-echo "${docker_port}"
+# Run the subcommand
+if fn "${subcommand}" >/dev/null; then
+  r=0
+  # https://stackoverflow.com/a/7577209/376773
+  "${subcommand}" ${args[@]+"${args[@]}"} || r=$?
+  exit "$r"
+else
+  echo "ERROR: \"${subcommand}\" is not a valid sub-command" >&2
+  exit 2
+fi
