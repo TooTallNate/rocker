@@ -215,7 +215,6 @@ port() {
     elif [ "${action}" = "unpublish" ]; then
       action="cancel"
     fi
-    echo forward_port "${action}" "$@"
     forward_port "${action}" "$@"
     # TODO: add/remove from an explicit forwards file
   fi
