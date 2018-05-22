@@ -90,7 +90,7 @@ else
   subcommand="port"
 fi
 
-if [ -z "${hostname}" ]; then
+if [ -z "${hostname:-}" ]; then
   echo "FATAL: An SSH hostname is required!" >&2
   exit 2
 fi
