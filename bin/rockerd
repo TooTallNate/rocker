@@ -220,6 +220,14 @@ port() {
     # TODO: add/remove from an explicit forwards file
   fi
 }
+
+run_ssh() {
+  ssh -S "${control_socket}" \
+      -o UserKnownHostsFile=~/.ssh/known_hosts \
+      -F ~/.ssh/config \
+      ${ssh_options:-} \
+      "${hostname}" "$@"
+}
 # End of sub-commands
 
 # https://stackoverflow.com/a/18622662/376773
@@ -267,7 +275,10 @@ else
   disown -h
 fi
 
-# Run the subcommand
+# Run the sub-command
+if [ "${subcommand}" = "ssh" ]; then
+  subcommand="run_ssh"
+fi
 if fn "${subcommand}" >/dev/null; then
   r=0
   # https://stackoverflow.com/a/7577209/376773
