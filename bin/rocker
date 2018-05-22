@@ -24,8 +24,7 @@ if [ $# -eq 1 ] && [ "$1" = "-v" -o "$1" = "--version" ]; then
 fi
 
 args=()
-rocker=0
-rocker_hostname=""
+rocker_hostname=
 
 add_volume() {
   args+=("--volume" "/mnt/sshfs/${hostname}${1}")
@@ -53,8 +52,7 @@ debug_args() {
 parse_host() {
   local host="${1}"
   if [ "$(echo "${host}" | awk -F:// '{print $1}')" = "ssh" ]; then
-    rocker=1
-    rocker_hostname="$(echo "${host}" | awk -F:// '{print $2}')"
+    rocker_hostname="${host}"
   else
     args+=("--host" "${host}")
   fi
@@ -85,9 +83,9 @@ while [ $# -gt 0 ]; do
   #echo
 done
 
-if [ "${rocker}" -eq 1 ]; then
-  debug '$' sudo -E rockerd "${rocker_hostname}"
-  port="$(sudo -E rockerd "${rocker_hostname}")"
+if [ ! -z "${rocker_hostname}" ]; then
+  debug '$' sudo -E DOCKER_HOST="${rocker_hostname}" rockerd port
+  port="$(sudo -E DOCKER_HOST="${rocker_hostname}" rockerd port)"
   host_arg="--host tcp://127.0.0.1:${port}"
 fi
 
