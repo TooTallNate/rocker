@@ -18,6 +18,7 @@ Aims to support all docker features, in particular:
  * Port publishing (`-p`) by SSH local port forwarding.
  * Volume mounts (`-v`) by a reverse `sshfs` from the server to local.
 
+
 ## Usage
 
 One-time with `-H`/`--host`:
@@ -32,6 +33,7 @@ Make it permanent by setting `DOCKER_HOST`:
 $ export DOCKER_HOST=ssh://user@myserver.com
 $ docker run --rm -p 80:80 nginx
 ```
+
 
 ## Setup
 
@@ -70,3 +72,37 @@ Instructions are for an Ubuntu server:
     $ sudo mkdir -p /mnt/sshfs
     $ sudo chmod 777 /mnt/sshfs
     ```
+
+
+## Sub-commands
+
+All `rockerd` commands expect either the `DOCKER_HOST` environment variable to be
+set, or for the `--host`/`-H` CLI argument to be specified.
+
+#### SSH into the remote docker machine
+
+```bash
+$ rockerd ssh
+```
+
+Invokes `ssh` with the configured docker host. The ssh connection uses the
+control socket that the `rockerd` daemon creates, so it does not need to perform
+a new handshake, etc.
+
+#### Explicitly forwarding a port to localhost
+
+Publish port 80 from the remote docker machine to localhost:
+
+```bash
+$ rockerd port publish 80
+```
+
+When using `docker run --net=host`, the ports that the container binds to are
+_not known_. In this case, it can be useful to manually publish the desired port
+by running the `rockerd port publish` command.
+
+When you no longer want to have the port being forwarded, use `unpublish`:
+
+```bash
+$ rockerd port unpublish 80
+```
