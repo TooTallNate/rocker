@@ -79,7 +79,7 @@ Instructions are for an Ubuntu server:
 All `rockerd` commands expect either the `DOCKER_HOST` environment variable to be
 set, or for the `--host`/`-H` CLI argument to be specified.
 
-#### SSH into the remote docker machine
+### SSH into the remote docker machine
 
 ```bash
 $ rockerd ssh
@@ -89,7 +89,7 @@ Invokes `ssh` with the configured docker host. The ssh connection uses the
 control socket that the `rockerd` daemon creates, so it does not need to perform
 a new handshake, etc.
 
-#### Explicitly forwarding a port to localhost
+### Explicitly forwarding a port to localhost
 
 Publish port 80 from the remote docker machine to localhost:
 
