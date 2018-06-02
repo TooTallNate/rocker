@@ -141,7 +141,7 @@ is_connected() {
 
 # https://stackoverflow.com/a/6943581/376773
 port_in_use() {
-  printf "\035" | nc 127.0.0.1 "$1" </dev/null >/dev/null 2>&1
+  nc 127.0.0.1 "$1" </dev/null >/dev/null 2>&1
 }
 
 get_unused_port() {
