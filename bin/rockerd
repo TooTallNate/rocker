@@ -280,10 +280,8 @@ if [ "${subcommand}" = "ssh" ]; then
   subcommand="run_ssh"
 fi
 if fn "${subcommand}" >/dev/null; then
-  r=0
   # https://stackoverflow.com/a/7577209/376773
-  "${subcommand}" ${args[@]+"${args[@]}"} || r=$?
-  exit "$r"
+  "${subcommand}" ${args[@]+"${args[@]}"}
 else
   echo "ERROR: \"${subcommand}\" is not a valid sub-command" >&2
   exit 2
