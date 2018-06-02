@@ -222,7 +222,7 @@ port() {
 }
 
 run_ssh() {
-  ssh -S "${control_socket}" \
+  exec ssh -S "${control_socket}" \
       -o UserKnownHostsFile=~/.ssh/known_hosts \
       -F ~/.ssh/config \
       ${ssh_options:-} \
