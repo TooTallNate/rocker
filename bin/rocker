@@ -84,8 +84,8 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ! -z "${rocker_hostname}" ]; then
-  debug '$' sudo -E DOCKER_HOST="${rocker_hostname}" rockerd port
-  port="$(sudo -E DOCKER_HOST="${rocker_hostname}" rockerd port)"
+  debug '$' DOCKER_HOST="${rocker_hostname}" rockerd port
+  port="$(DOCKER_HOST="${rocker_hostname}" rockerd port)"
   host_arg="--host tcp://127.0.0.1:${port}"
 fi
 
