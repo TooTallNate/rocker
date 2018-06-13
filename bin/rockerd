@@ -243,7 +243,7 @@ else
   chown "${owner}" "${logfile}"
 
   debug "Establishing SSH control socket to ${hostname}"
-  ssh -fN -M -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
+  ssh -fN -M -A -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
   chown "${owner}" "$(echo "${control_socket}" | sed "s/\%C/${hostname_hash}/")"
 
   # Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
@@ -264,6 +264,7 @@ else
   #echo "${sshfs_script}"
 
   ssh \
+    -A \
     -S "${control_socket}" \
     -F ~/.ssh/config \
     "${hostname}" \
