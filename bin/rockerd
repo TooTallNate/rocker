@@ -230,7 +230,6 @@ run_ssh() {
 }
 # End of sub-commands
 
-# https://stackoverflow.com/a/18622662/376773
 if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
 else
