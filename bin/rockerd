@@ -28,7 +28,7 @@ server__create_sshfs() {
   set -euo pipefail
   mountpoint="/mnt/sshfs/${ssh_hostname}/"
   mkdir -p "${mountpoint}" 2>/dev/null ||:
-  sudo umount "${mountpoint}" 2>/dev/null ||:
+  fusermount -u "${mountpoint}" 2>/dev/null ||:
   echo "Mounting local filesystem at ${mountpoint}"
 
   # https://askubuntu.com/a/980257/403009
@@ -268,7 +268,7 @@ else
     -S "${control_socket}" \
     -F ~/.ssh/config \
     "${hostname}" \
-    "${sshfs_script}" </dev/null >>"${logfile}" 2>&1 &
+    bash <<< "${sshfs_script}" >>"${logfile}" 2>&1 &
   disown -h
 
   debug "Monitoring published ports"
