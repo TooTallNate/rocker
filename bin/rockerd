@@ -110,13 +110,13 @@ has_dep() {
 dockerd_get() {
   local endpoint="$1"
   shift
-  curl --fail --silent --show-error "127.0.0.1:$(cat "${port_file}")/v1.18/${endpoint}" "$@"
+  exec curl --fail --silent --show-error "127.0.0.1:$(cat "${port_file}")/v1.18/${endpoint}" "$@"
 }
 
 get_ports() {
   if has_dep jq; then
-    dockerd_get containers/json | \
-      jq -r '.[].Ports[] | select(.Type = "tcp") | .IP + ":" + (.PublicPort|tostring)'
+    jq -r '.[].Ports[] | select(.Type = "tcp") | .IP + ":" + (.PublicPort|tostring)' \
+      < <(dockerd_get containers/json)
   else
     ssh -S "${control_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)"
   fi
@@ -161,12 +161,12 @@ wait_for_network_events() {
   # `date` forces an immediate ports check upon startup
   date
   if has_dep jq; then
-    dockerd_get events --no-buffer | while read -r line; do
+    while IFS='' read -r line; do
       action="$(echo "$line" | jq -r '.Action')"
       if [ "${action}" = "start" -o "${action}" = "destroy" ]; then
         echo "$line"
       fi
-    done
+    done < <(dockerd_get events --no-buffer)
   else
     # fall back to polling
     while is_connected; do
@@ -180,26 +180,26 @@ wait_for_network_events() {
 monitor_ports() {
   local ports=
   local previous_ports=
-  wait_for_network_events | while read -r line; do
+  while IFS='' read -r line; do
     echo "Checking published docker container ports"
     ports="$(get_ports ||:)"
 
     for port in ${ports}; do
-      if ! echo "${previous_ports}" | grep "${port}" >/dev/null; then
+      if ! grep "${port}" <<< "${previous_ports}" >/dev/null; then
         echo "Publishing port ${port}"
         forward_port forward "${port}" ||:
       fi
     done
 
     for port in ${previous_ports}; do
-      if ! echo "${ports}" | grep "${port}" >/dev/null; then
+      if ! grep "${port}" <<< "${ports}" >/dev/null; then
         echo "Unpublishing port ${port}"
         forward_port cancel "${port}" ||:
       fi
     done
 
     previous_ports="${ports}"
-  done ||:
+  done < <(wait_for_network_events) ||:
   echo "Control socket is no longer running, cleaning up…"
   rm -f "${port_file}" ||:
 }
