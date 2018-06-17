@@ -199,7 +199,7 @@ monitor_ports() {
     done
 
     previous_ports="${ports}"
-  done < <(wait_for_network_events) ||:
+  done < <(exec -a "rockerd: docker events monitor" bash "$0" wait_for_network_events) ||:
   echo "Control socket is no longer running, cleaning up…"
   rm -f "${port_file}" ||:
 }
@@ -262,7 +262,7 @@ else
   sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
   #echo "${sshfs_script}"
 
-  ssh \
+  exec -a "rockerd: sshfs volume mount" ssh \
     -A \
     -S "${control_socket}" \
     -F ~/.ssh/config \
@@ -271,7 +271,7 @@ else
   disown -h
 
   debug "Monitoring published ports"
-  monitor_ports </dev/null >>"${logfile}" 2>&1 &
+  exec -a "rockerd: port publisher" bash "$0" monitor_ports </dev/null >>"${logfile}" 2>&1 &
   disown -h
 fi
 
