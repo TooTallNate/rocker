@@ -101,9 +101,6 @@ hostname_dir="${rocker_dir}/${hostname_hash}"
 ssh_socket="${rocker_dir}/%C/ssh.sock"
 docker_socket="${hostname_dir}/docker.sock"
 
-port_dir="${rocker_dir}/ports"
-port_file="${port_dir}/${hostname_hash}"
-
 # Exits 0 if dependency is present in $PATH, or 1 if not
 has_dep() {
   hash "$@" </dev/null >/dev/null 2>&1
@@ -112,7 +109,9 @@ has_dep() {
 dockerd_get() {
   local endpoint="$1"
   shift
-  exec curl --fail --silent --show-error "127.0.0.1:$(cat "${port_file}")/v1.18/${endpoint}" "$@"
+  exec curl --fail --silent --show-error \
+    --unix-socket "${docker_socket}" \
+    "http://localhost/v1.18/${endpoint}" "$@"
 }
 
 get_ports() {
@@ -139,18 +138,6 @@ forward_port() {
 
 is_connected() {
   ssh -O check -S "${ssh_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
-}
-
-# https://stackoverflow.com/a/6943581/376773
-port_in_use() {
-  nc 127.0.0.1 "$1" </dev/null >/dev/null 2>&1
-}
-
-get_unused_port() {
-  for port in $(seq "$(shuf -i 2000-65000 -n 1)" 65000);
-  do
-    port_in_use "${port}" || echo "$port" && break;
-  done
 }
 
 fn() {
@@ -203,24 +190,20 @@ monitor_ports() {
     previous_ports="${ports}"
   done < <(exec -a "rockerd: docker events monitor" bash "$0" wait_for_network_events) ||:
   echo "Control socket is no longer running, cleaning up…"
-  rm -f "${port_file}" ||:
+  rm -f "${hostname_dir}" ||:
 }
 
 # Sub-commands
 port() {
   local action="${1:-}"
-  if [ -z "${action}" ]; then
-    cat "${port_file}"
-  else
-    shift
-    if [ "${action}" = "publish" ]; then
-      action="forward"
-    elif [ "${action}" = "unpublish" ]; then
-      action="cancel"
-    fi
-    forward_port "${action}" "$@"
-    # TODO: add/remove from an explicit forwards file
+  shift
+  if [ "${action}" = "publish" ]; then
+    action="forward"
+  elif [ "${action}" = "unpublish" ]; then
+    action="cancel"
   fi
+  forward_port "${action}" "$@"
+  # TODO: add/remove from an explicit forwards file
 }
 
 dockersock() {
@@ -240,8 +223,8 @@ if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
 else
   owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
-  mkdir -p "${hostname_dir}" "${port_dir}"
-  chown "${owner}" "${hostname_dir}" "${port_dir}"
+  mkdir -p "${hostname_dir}"
+  chown "${owner}" "${hostname_dir}"
 
   touch "${logfile}"
   chown "${owner}" "${logfile}"
@@ -249,15 +232,6 @@ else
   debug "Establishing SSH control socket to ${hostname}"
   ssh -fN -M -A -S "${ssh_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
   chown "${owner}" "$(echo "${ssh_socket}" | sed "s/\%C/${hostname_hash}/")"
-
-  # Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
-  # so an unused port is first determined and then used in the ssh call afterwards.
-  # https://superuser.com/q/919808/41354
-  docker_port="$(get_unused_port)"
-  ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
-  debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
-  echo "${docker_port}" > "${port_file}"
-  chown "${owner}" "${port_file}"
 
   # Forward the `/var/run/docker.sock` Unix socket file from the server to local
   ssh -O forward -L "${docker_socket}:/var/run/docker.sock" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
