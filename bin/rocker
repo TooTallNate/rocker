@@ -66,9 +66,6 @@ fi
 
 # Parse argv
 while [ $# -gt 0 ]; do
-  #echo Arg: "${1}"
-  #echo "$@"
-
   case "$1" in
     -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
     -H|--host) parse_host "${2}"; shift 2;;
@@ -78,9 +75,6 @@ while [ $# -gt 0 ]; do
 
     *) args+=("${1}"); shift 1;;
   esac
-
-  #echo "${args[@]}"
-  #echo
 done
 
 if [ ! -z "${rocker_hostname}" ]; then

@@ -260,7 +260,6 @@ else
   ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
 
   sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
-  #echo "${sshfs_script}"
 
   exec -a "rockerd: sshfs volume mount" ssh \
     -A \
