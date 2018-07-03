@@ -62,7 +62,6 @@ Instructions are for an Ubuntu server:
 
  1. [Setup `docker`](https://docs.docker.com/install/linux/docker-ce/ubuntu).
  1. [Setup SSH server](https://help.ubuntu.com/community/SSH/OpenSSH/Configuring).
- 1. [Configure `dockerd` to listen on a TCP port](https://success.docker.com/article/how-do-i-enable-the-remote-api-for-dockerd).
  1. Install `sshfs`:
     ```bash
     $ sudo apt-get install sshfs

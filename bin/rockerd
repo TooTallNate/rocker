@@ -63,7 +63,7 @@ get_hostname_hash() {
 
 # Strip the `ssh://` prefix, if present
 parse_host() {
-  echo "$1" | sed 's|ssh://||'
+  sed 's|ssh://||' <<< "$1"
 }
 
 if [ ! -z "${DOCKER_HOST:-}" ]; then
@@ -88,7 +88,7 @@ if [ "${#args[@]}" -gt 0 ]; then
   subcommand="${args[0]}"
   args=("${args[@]:1}")
 else
-  subcommand="port"
+  subcommand="dockersock"
 fi
 
 if [ -z "${hostname:-}" ]; then
@@ -97,8 +97,10 @@ if [ -z "${hostname:-}" ]; then
 fi
 
 hostname_hash="$(get_hostname_hash "${hostname}")"
-control_socket_dir="${rocker_dir}/connections"
-control_socket="${control_socket_dir}/%C.sock"
+hostname_dir="${rocker_dir}/${hostname_hash}"
+ssh_socket="${rocker_dir}/%C/ssh.sock"
+docker_socket="${hostname_dir}/docker.sock"
+
 port_dir="${rocker_dir}/ports"
 port_file="${port_dir}/${hostname_hash}"
 
@@ -118,7 +120,7 @@ get_ports() {
     jq -r '.[].Ports[] | select(.Type = "tcp") | .IP + ":" + (.PublicPort|tostring)' \
       < <(dockerd_get containers/json)
   else
-    ssh -S "${control_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)"
+    ssh -S "${ssh_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)"
   fi
 }
 
@@ -132,11 +134,11 @@ forward_port() {
     host="0.0.0.0"
     port="$2"
   fi
-  ssh -O "$1" -L "${host}:${port}:127.0.0.1:${port}" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+  ssh -O "$1" -L "${host}:${port}:127.0.0.1:${port}" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
 }
 
 is_connected() {
-  ssh -O check -S "${control_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
+  ssh -O check -S "${ssh_socket}" -F ~/.ssh/config "${hostname}" </dev/null >/dev/null 2>&1
 }
 
 # https://stackoverflow.com/a/6943581/376773
@@ -221,8 +223,12 @@ port() {
   fi
 }
 
+dockersock() {
+  echo "${docker_socket}"
+}
+
 run_ssh() {
-  exec ssh -S "${control_socket}" \
+  exec ssh -S "${ssh_socket}" \
       -o UserKnownHostsFile=~/.ssh/known_hosts \
       -F ~/.ssh/config \
       ${ssh_options:-} \
@@ -234,27 +240,31 @@ if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
 else
   owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
-  mkdir -p "${control_socket_dir}" "${port_dir}"
-  chown "${owner}" "${control_socket_dir}" "${port_dir}"
-  #chmod 700 "${control_socket_dir}" "${port_dir}"
+  mkdir -p "${hostname_dir}" "${port_dir}"
+  chown "${owner}" "${hostname_dir}" "${port_dir}"
 
   touch "${logfile}"
   chown "${owner}" "${logfile}"
 
   debug "Establishing SSH control socket to ${hostname}"
-  ssh -fN -M -A -S "${control_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
-  chown "${owner}" "$(echo "${control_socket}" | sed "s/\%C/${hostname_hash}/")"
+  ssh -fN -M -A -S "${ssh_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
+  chown "${owner}" "$(echo "${ssh_socket}" | sed "s/\%C/${hostname_hash}/")"
 
   # Unfortunately, `ssh -L` does not support specifying 0 for an ephemeral port,
   # so an unused port is first determined and then used in the ssh call afterwards.
   # https://superuser.com/q/919808/41354
   docker_port="$(get_unused_port)"
-  ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${control_socket}" -F ~/.ssh/config "${hostname}"
+  ssh -O forward -L "127.0.0.1:${docker_port}:127.0.0.1:2375" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
   debug "Port forwarding remote dockerd port 2375 to local port ${docker_port}"
   echo "${docker_port}" > "${port_file}"
   chown "${owner}" "${port_file}"
 
-  sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${control_socket}" -F ~/.ssh/config "${hostname}")"
+  # Forward the `/var/run/docker.sock` Unix socket file from the server to local
+  ssh -O forward -L "${docker_socket}:/var/run/docker.sock" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
+  debug "Forwarding remote 'docker.sock' to local '${docker_socket}'"
+  chown "${owner}" "${docker_socket}"
+
+  sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}")"
   debug "Port forwarding local sshd to remote port ${sshd_port}"
 
   ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
@@ -263,7 +273,7 @@ else
 
   exec -a "rockerd: sshfs volume mount" ssh \
     -A \
-    -S "${control_socket}" \
+    -S "${ssh_socket}" \
     -F ~/.ssh/config \
     "${hostname}" \
     bash <<< "${sshfs_script}" >>"${logfile}" 2>&1 &

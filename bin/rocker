@@ -78,10 +78,10 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ! -z "${rocker_hostname}" ]; then
-  debug '$' DOCKER_HOST="${rocker_hostname}" rockerd port
-  port="$(DOCKER_HOST="${rocker_hostname}" rockerd port)"
-  host_arg="--host tcp://127.0.0.1:${port}"
+  debug '$' DOCKER_HOST="${rocker_hostname}" rockerd
+  docker_socket="$(DOCKER_HOST="${rocker_hostname}" rockerd)"
+  args=("--host" "unix://${docker_socket}" "${args[@]}")
 fi
 
-debug_args "${docker}" $host_arg "${args[@]}"
-exec "${docker}" $host_arg "${args[@]}"
+debug_args ${docker} "${args[@]}"
+exec ${docker} "${args[@]}"
