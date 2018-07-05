@@ -190,7 +190,7 @@ monitor_ports() {
     previous_ports="${ports}"
   done < <(exec -a "rockerd: docker events monitor" bash "$0" wait_for_network_events) ||:
   echo "Control socket is no longer running, cleaning up…"
-  rm -f "${hostname_dir}" ||:
+  rm -rf "${hostname_dir}"
 }
 
 # Sub-commands
