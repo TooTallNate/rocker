@@ -42,7 +42,7 @@ server__create_sshfs() {
     -o reconnect \
     -o ssh_command="${ssh_command}" \
     -p "${sshd_port}" \
-    "127.0.0.1:/" "${mountpoint}"
+    "${ssh_username}@127.0.0.1:/" "${mountpoint}"
 }
 
 # Print to stderr when `DEBUG` env var is set, and append to the logfile
@@ -243,7 +243,7 @@ else
 
   ssh_hostname="$(hostname | tr '[:upper:]' '[:lower:]')"
 
-  sshfs_script="ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
+  sshfs_script="ssh_username=\"${SUDO_USER}\""$'\n'"ssh_hostname=\"${ssh_hostname}\""$'\n'"sshd_port=\"${sshd_port}\""$'\n'"$(fn server__create_sshfs)"
 
   exec -a "rockerd: sshfs volume mount" ssh \
     -A \
