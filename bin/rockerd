@@ -223,6 +223,12 @@ if is_connected; then
   NO_LOGFILE=1 debug "rockerd daemon is already running for ${hostname}"
 else
   owner="${SUDO_USER}:$(sudo -u "${SUDO_USER}" id -Gn | awk '{print $1}')"
+
+  if [ ! -d "${rocker_dir}" ]; then
+    mkdir -p "${rocker_dir}"
+    chown "${owner}" "${rocker_dir}"
+  fi
+
   mkdir -p "${hostname_dir}"
   chown "${owner}" "${hostname_dir}"
 
