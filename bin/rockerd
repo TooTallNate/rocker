@@ -63,11 +63,19 @@ get_hostname_hash() {
 
 # Strip the `ssh://` prefix, if present
 parse_host() {
-  sed 's|ssh://||' <<< "$1"
+  local url="$(sed 's|ssh://||' <<< "$1")"
+  hostname="$(awk -F: '{print $1}' <<< "$url")"
+  local sock="$(awk -F: '{print $2}' <<< "$url")"
+  if [ ! -z "$sock" ]; then
+    remote_docker_sock="$sock"
+  fi
 }
 
+# Where the `docker.sock` file lives on the remote machine
+remote_docker_sock="/var/run/docker.sock"
+
 if [ ! -z "${DOCKER_HOST:-}" ]; then
-  hostname="$(parse_host "${DOCKER_HOST}")"
+  parse_host "${DOCKER_HOST}"
 fi
 
 debug_mode="${DEBUG:-}"
@@ -78,8 +86,8 @@ logfile="${rocker_dir}/rockerd.log"
 args=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    -H=*|--host=*) hostname="$(parse_host "${1#*=}")"; shift 1;;
-    -H|--host) hostname="$(parse_host "${2}")"; shift 2;;
+    -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
+    -H|--host) parse_host "${2}"; shift 2;;
     *) args+=("${1}"); shift 1;;
   esac
 done
@@ -99,7 +107,7 @@ fi
 hostname_hash="$(get_hostname_hash "${hostname}")"
 hostname_dir="${rocker_dir}/${hostname_hash}"
 ssh_socket="${rocker_dir}/%C/ssh.sock"
-docker_socket="${hostname_dir}/docker.sock"
+docker_sock="${hostname_dir}/docker.sock"
 
 # Exits 0 if dependency is present in $PATH, or 1 if not
 has_dep() {
@@ -110,7 +118,7 @@ dockerd_get() {
   local endpoint="$1"
   shift
   exec curl --fail --silent --show-error \
-    --unix-socket "${docker_socket}" \
+    --unix-socket "${docker_sock}" \
     "http://localhost/v1.18/${endpoint}" "$@"
 }
 
@@ -207,7 +215,7 @@ port() {
 }
 
 dockersock() {
-  echo "${docker_socket}"
+  echo "${docker_sock}"
 }
 
 run_ssh() {
@@ -240,9 +248,9 @@ else
   chown "${owner}" "$(echo "${ssh_socket}" | sed "s/\%C/${hostname_hash}/")"
 
   # Forward the `/var/run/docker.sock` Unix socket file from the server to local
-  ssh -O forward -L "${docker_socket}:/var/run/docker.sock" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
-  debug "Forwarding remote 'docker.sock' to local '${docker_socket}'"
-  chown "${owner}" "${docker_socket}"
+  debug "Forwarding remote '${remote_docker_sock}' to local '${docker_sock}'"
+  ssh -O forward -L "${docker_sock}:${remote_docker_sock}" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}"
+  chown "${owner}" "${docker_sock}"
 
   sshd_port="$(ssh -O forward -R "127.0.0.1:0:127.0.0.1:${ROCKER_SSH_PORT:-22}" -S "${ssh_socket}" -F ~/.ssh/config "${hostname}")"
   debug "Port forwarding local sshd to remote port ${sshd_port}"
