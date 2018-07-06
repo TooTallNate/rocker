@@ -80,8 +80,8 @@ done
 if [ ! -z "${rocker_hostname}" ]; then
   debug '$' DOCKER_HOST="${rocker_hostname}" rockerd
   docker_socket="$(DOCKER_HOST="${rocker_hostname}" rockerd)"
-  args=("--host" "unix://${docker_socket}" "${args[@]}")
+  args=("--host" "unix://${docker_socket}" ${args[@]+"${args[@]}"})
 fi
 
-debug_args ${docker} "${args[@]}"
-exec ${docker} "${args[@]}"
+debug_args ${docker} ${args[@]+"${args[@]}"}
+exec ${docker} ${args[@]+"${args[@]}"}
