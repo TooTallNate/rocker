@@ -125,7 +125,7 @@ dockerd_get() {
 
 get_ports() {
   if has_dep jq; then
-    jq -r '.[].Ports[] | select(.Type = "tcp") | .IP + ":" + (.PublicPort|tostring)' \
+    jq -r '.[].Ports[] | select(.Type = "tcp") | select(.PublicPort != null) | .IP + ":" + (.PublicPort|tostring)' \
       < <(dockerd_get containers/json)
   else
     ssh -S "${ssh_socket}" -F ~/.ssh/config "${hostname}" "$(fn server__get_ports)"
