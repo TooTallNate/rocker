@@ -59,7 +59,7 @@ debug() {
 # Extract the hostname's ssh_config %C hash since the `port` file
 # uses the same name, and the socket control file also gets chown'd
 get_hostname_hash() {
-  ssh -F ~/.ssh/config -G -S "%C" "$1" | grep controlpath | head -n1 | awk '{print $2}'
+  ssh -T -F ~/.ssh/config -G -S "%C" "$1" </dev/null | grep controlpath | head -n1 | awk '{print $2}'
 }
 
 # Strip the `ssh://` prefix, if present
