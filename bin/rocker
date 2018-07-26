@@ -24,6 +24,7 @@ if [ $# -eq 1 ] && [ "$1" = "-v" -o "$1" = "--version" ]; then
 fi
 
 args=()
+docker_host=
 rocker_hostname=
 
 add_volume() {
@@ -53,12 +54,9 @@ parse_host() {
   if [ "$(awk -F:// '{print $1}' <<< "$1")" = "ssh" ]; then
     rocker_hostname="$1"
   else
-    args+=("--host" "$1")
+    docker_host="$1"
   fi
-  has_host=1
 }
-
-has_host=0
 
 # Parse argv
 while [ $# -gt 0 ]; do
@@ -74,15 +72,19 @@ while [ $# -gt 0 ]; do
 done
 
 # Parse $DOCKER_HOST environment variable
-if [ "$has_host" -eq 0 ] && [ -n "${DOCKER_HOST:-}" ]; then
+if [ -z "$docker_host" ] && [ -n "${DOCKER_HOST:-}" ]; then
   parse_host "${DOCKER_HOST}"
   unset DOCKER_HOST
 fi
 
-if [ ! -z "${rocker_hostname}" ]; then
+if [ -n "${rocker_hostname}" ]; then
   debug '$' DOCKER_HOST="${rocker_hostname}" rockerd
-  docker_socket="$(DOCKER_HOST="${rocker_hostname}" rockerd)"
-  args=("--host" "unix://${docker_socket}" ${args[@]+"${args[@]}"})
+  docker_host="unix://$(DOCKER_HOST="${rocker_hostname}" rockerd)"
+fi
+
+if [ -n "$docker_host" ]; then
+  # The `--host` argument must go in the beginning
+  args=("--host" "${docker_host}" ${args[@]+"${args[@]}"})
 fi
 
 debug_args ${docker} ${args[@]+"${args[@]}"}
