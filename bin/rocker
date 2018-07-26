@@ -50,19 +50,15 @@ debug_args() {
 }
 
 parse_host() {
-  local host="${1}"
-  if [ "$(echo "${host}" | awk -F:// '{print $1}')" = "ssh" ]; then
-    rocker_hostname="${host}"
+  if [ "$(awk -F:// '{print $1}' <<< "$1")" = "ssh" ]; then
+    rocker_hostname="$1"
   else
-    args+=("--host" "${host}")
+    args+=("--host" "$1")
   fi
+  has_host=1
 }
 
-# Parse $DOCKER_HOST environment variable
-if [ ! -z "${DOCKER_HOST:-}" ]; then
-  parse_host "${DOCKER_HOST}"
-  unset DOCKER_HOST
-fi
+has_host=0
 
 # Parse argv
 while [ $# -gt 0 ]; do
@@ -76,6 +72,12 @@ while [ $# -gt 0 ]; do
     *) args+=("${1}"); shift 1;;
   esac
 done
+
+# Parse $DOCKER_HOST environment variable
+if [ "$has_host" -eq 0 ] && [ -n "${DOCKER_HOST:-}" ]; then
+  parse_host "${DOCKER_HOST}"
+  unset DOCKER_HOST
+fi
 
 if [ ! -z "${rocker_hostname}" ]; then
   debug '$' DOCKER_HOST="${rocker_hostname}" rockerd
