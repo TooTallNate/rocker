@@ -204,6 +204,10 @@ monitor_ports() {
 }
 
 # Sub-commands
+stop() {
+  kill "$(cat "${ssh_pid}")"
+}
+
 port() {
   local action="${1:-}"
   shift
