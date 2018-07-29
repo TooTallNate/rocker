@@ -107,6 +107,7 @@ fi
 
 hostname_hash="$(get_hostname_hash "${hostname}")"
 hostname_dir="${rocker_dir}/${hostname_hash}"
+ssh_pid="${hostname_dir}/ssh.pid"
 ssh_socket="${rocker_dir}/%C/ssh.sock"
 docker_sock="${hostname_dir}/docker.sock"
 
@@ -246,6 +247,7 @@ else
 
   debug "Establishing SSH control socket to ${hostname}"
   ssh -fN -M -A -S "${ssh_socket}" -o UserKnownHostsFile=~/.ssh/known_hosts -F ~/.ssh/config "${hostname}" </dev/null >>"${logfile}" 2>&1
+  ps ax | grep '[s]sh.*-f' | grep "${hostname}" | awk '{print $1}' > "${ssh_pid}"
   chown "${owner}" "$(echo "${ssh_socket}" | sed "s/\%C/${hostname_hash}/")"
 
   # Forward the `/var/run/docker.sock` Unix socket file from the server to local
