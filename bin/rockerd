@@ -205,7 +205,7 @@ monitor_ports() {
 
 # Sub-commands
 stop() {
-  kill "$(cat "${ssh_pid}")"
+  cat "${ssh_pid}" | xargs kill
 }
 
 port() {
