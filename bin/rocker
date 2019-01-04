@@ -62,12 +62,17 @@ parse_host() {
 while [ $# -gt 0 ]; do
   case "$1" in
     -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
-    -H|--host) parse_host "${2}"; shift 2;;
+    -H|--host) parse_host "$2"; shift 2;;
 
     -v=*|--volume=*) add_volume "${1#*=}"; shift 1;;
-    -v|--volume) add_volume "${2}"; shift 2;;
+    -v|--volume) add_volume "$2"; shift 2;;
 
-    *) args+=("${1}"); shift 1;;
+    -*=*) args+=("$1"); shift 1;;
+    -*) args+=("$1" "$2"); shift 2;;
+
+    # The first non-flag argument signals the container/image name,
+    # and any future arguments must be passed through unmodified
+    *) args+=("$@"); break;;
   esac
 done
 

@@ -137,8 +137,8 @@ forward_port() {
   local host=
   local port=
   if echo "$2" | grep ':' >/dev/null; then
-    host="$(echo "$2" | awk -F: '{print $1}')"
-    port="$(echo "$2" | awk -F: '{print $2}')"
+    host="$(awk -F: '{print $1}' <<< "$2")"
+    port="$(awk -F: '{print $2}' <<< "$2")"
   else
     host="0.0.0.0"
     port="$2"
@@ -217,7 +217,8 @@ port() {
     action="cancel"
   fi
   forward_port "${action}" "$@"
-  # TODO: add/remove from an explicit forwards file
+  # TODO: add/remove from an explicit forwards file.
+  # Have it be reloaded upon rockerd boot-up.
 }
 
 dockersock() {
