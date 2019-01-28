@@ -59,6 +59,7 @@ parse_host() {
 }
 
 # Parse argv
+cmd=
 while [ $# -gt 0 ]; do
   case "$1" in
     -H=*|--host=*) parse_host "${1#*=}"; shift 1;;
@@ -70,9 +71,21 @@ while [ $# -gt 0 ]; do
     -*=*) args+=("$1"); shift 1;;
     -*) args+=("$1" "$2"); shift 2;;
 
-    # The first non-flag argument signals the container/image name,
-    # and any future arguments must be passed through unmodified
-    *) args+=("$@"); break;;
+    *)
+      if [ -z "$cmd" ]; then
+        # The first non-flag argument is the command (i.e. `run`).
+        cmd="$1"
+        args+=("$1")
+        shift 1
+      else
+        # The second non-flag argument is the container/image name, and any
+        # future arguments must be passed through unmodified since they will
+        # be command arguments for the docker container, not docker flags
+        args+=("$@")
+        debug "Breaking on '$1'"
+        break
+      fi
+      ;;
   esac
 done
 
