@@ -1,5 +1,11 @@
 # Rocker <img width="38" src="https://camo.githubusercontent.com/cd082848a3f8f00d426e36a8fe232a8d44b0e9c6/68747470733a2f2f656d6f6a692e736c61636b2d656467652e636f6d2f5430434151303054552f726f636b6f75742f326631653833663338623161643435392e676966" />
 
+## Deprecation Notice
+
+**This repository is deprecated. As of Docker 18.09, [connecting to Docker
+daemon over SSH is built-in][builtin], so this helper script is no longer
+necessary.**
+
 **R**emote D**ocker** is a small wrapper around the `docker` client that
 extends it with support for securely connecting to a remote `dockerd` daemon
 via SSH.
@@ -105,3 +111,6 @@ When you no longer want to have the port being forwarded, use `unpublish`:
 ```bash
 $ rockerd port unpublish 80
 ```
+
+
+[builtin]: https://medium.com/lucjuggery/docker-tips-access-the-docker-daemon-via-ssh-97cd6b44a53
